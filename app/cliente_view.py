@@ -3,63 +3,73 @@ from tkinter import ttk, messagebox
 
 import auth
 import db
+import styles
 
 
 class LoginClienteFrame(ttk.Frame):
     def __init__(self, master, on_login):
-        super().__init__(master, padding=20)
+        super().__init__(master, padding=30)
         self.on_login = on_login
 
-        ttk.Label(self, text="Acceso de cliente", font=("Segoe UI", 16, "bold")).pack(pady=(0, 15))
+        ttk.Label(self, text="🛒  Acceso de cliente", style="Section.TLabel", font=styles.FONT_HEADER).pack(
+            pady=(0, 20)
+        )
 
-        notebook = ttk.Notebook(self)
+        tarjeta = ttk.Frame(self, style="Card.TFrame", padding=25)
+        tarjeta.pack()
+
+        notebook = ttk.Notebook(tarjeta)
         notebook.pack()
 
-        tab_login = ttk.Frame(notebook, padding=20)
-        tab_registro = ttk.Frame(notebook, padding=20)
+        tab_login = ttk.Frame(notebook, style="Card.TFrame", padding=20)
+        tab_registro = ttk.Frame(notebook, style="Card.TFrame", padding=20)
         notebook.add(tab_login, text="Iniciar sesión")
         notebook.add(tab_registro, text="Crear cuenta")
 
         self._armar_tab_login(tab_login)
         self._armar_tab_registro(tab_registro)
 
-        ttk.Button(self, text="Volver", command=lambda: self.master.event_generate("<<VolverInicio>>")).pack(
-            pady=15
-        )
+        ttk.Button(
+            self, text="← Volver", style="Ghost.TButton", command=lambda: self.master.event_generate("<<VolverInicio>>")
+        ).pack(pady=20)
 
     def _armar_tab_login(self, tab):
-        ttk.Label(tab, text="Usuario:").grid(row=0, column=0, sticky="w")
+        ttk.Label(tab, text="Usuario:", style="Card.TLabel").grid(row=0, column=0, sticky="w")
         self.login_user_var = tk.StringVar()
         entry_user = ttk.Entry(tab, textvariable=self.login_user_var, width=30)
         entry_user.grid(row=1, column=0, pady=(0, 10))
         entry_user.focus()
 
-        ttk.Label(tab, text="Contraseña:").grid(row=2, column=0, sticky="w")
+        ttk.Label(tab, text="Contraseña:", style="Card.TLabel").grid(row=2, column=0, sticky="w")
         self.login_pass_var = tk.StringVar()
         entry_pass = ttk.Entry(tab, textvariable=self.login_pass_var, show="*", width=30)
         entry_pass.grid(row=3, column=0, pady=(0, 15))
         entry_pass.bind("<Return>", lambda e: self._login())
 
-        ttk.Button(tab, text="Ingresar", command=self._login).grid(row=4, column=0, sticky="ew")
+        ttk.Button(tab, text="Ingresar", style="Accent.TButton", command=self._login).grid(
+            row=4, column=0, sticky="ew"
+        )
 
     def _armar_tab_registro(self, tab):
-        ttk.Label(tab, text="Correo registrado como cliente:").grid(row=0, column=0, sticky="w")
+        ttk.Label(tab, text="Correo registrado como cliente:", style="Card.TLabel").grid(row=0, column=0, sticky="w")
         self.reg_email_var = tk.StringVar()
         ttk.Entry(tab, textvariable=self.reg_email_var, width=30).grid(row=1, column=0, pady=(0, 10))
 
-        ttk.Label(tab, text="Nuevo usuario:").grid(row=2, column=0, sticky="w")
+        ttk.Label(tab, text="Nuevo usuario:", style="Card.TLabel").grid(row=2, column=0, sticky="w")
         self.reg_user_var = tk.StringVar()
         ttk.Entry(tab, textvariable=self.reg_user_var, width=30).grid(row=3, column=0, pady=(0, 10))
 
-        ttk.Label(tab, text="Contraseña:").grid(row=4, column=0, sticky="w")
+        ttk.Label(tab, text="Contraseña:", style="Card.TLabel").grid(row=4, column=0, sticky="w")
         self.reg_pass_var = tk.StringVar()
         ttk.Entry(tab, textvariable=self.reg_pass_var, show="*", width=30).grid(row=5, column=0, pady=(0, 10))
 
-        ttk.Label(tab, text="Confirmar contraseña:").grid(row=6, column=0, sticky="w")
+        ttk.Label(tab, text="Confirmar contraseña:", style="Card.TLabel").grid(row=6, column=0, sticky="w")
         self.reg_pass2_var = tk.StringVar()
         ttk.Entry(tab, textvariable=self.reg_pass2_var, show="*", width=30).grid(row=7, column=0, pady=(0, 15))
 
-        ttk.Button(tab, text="Registrar", command=self._registrar).grid(row=8, column=0, sticky="ew")
+        ttk.Button(tab, text="Registrar", style="Accent.TButton", command=self._registrar).grid(
+            row=8, column=0, sticky="ew"
+        )
 
     def _login(self):
         username = self.login_user_var.get().strip()
@@ -120,23 +130,27 @@ class LoginClienteFrame(ttk.Frame):
 
 class CatalogoFrame(ttk.Frame):
     def __init__(self, master, cliente):
-        super().__init__(master, padding=10)
+        super().__init__(master, padding=0)
         self.cliente = cliente
         self.carrito = {}  # id_variante -> dict(info, cantidad)
 
-        header = ttk.Frame(self)
+        header = ttk.Frame(self, style="Header.TFrame", padding=(20, 14))
         header.pack(fill="x")
         ttk.Label(
             header,
-            text=f"Hola, {cliente['nombre']} {cliente['apellido']}",
-            font=("Segoe UI", 13, "bold"),
+            text=f"🛒 Hola, {cliente['nombre']} {cliente['apellido']}",
+            style="Header.TLabel",
         ).pack(side="left")
-        ttk.Button(header, text="Cerrar sesión", command=lambda: self.event_generate("<<VolverInicio>>")).pack(
-            side="right"
-        )
+        ttk.Button(
+            header, text="Cerrar sesión", style="Accent.TButton", command=lambda: self.event_generate("<<VolverInicio>>")
+        ).pack(side="right")
 
-        filtros = ttk.Frame(self)
-        filtros.pack(fill="x", pady=10)
+        cuerpo_general = ttk.Frame(self, padding=15)
+        cuerpo_general.pack(fill="both", expand=True)
+        self._cuerpo_general = cuerpo_general
+
+        filtros = ttk.Frame(cuerpo_general)
+        filtros.pack(fill="x", pady=(0, 10))
 
         ttk.Label(filtros, text="Tienda:").grid(row=0, column=0, sticky="w")
         self.almacen_var = tk.StringVar()
@@ -150,9 +164,7 @@ class CatalogoFrame(ttk.Frame):
         self.categoria_combo.grid(row=0, column=3, padx=5)
         self.categoria_combo.bind("<<ComboboxSelected>>", lambda e: self._cargar_catalogo())
 
-        self._cargar_filtros()
-
-        cuerpo = ttk.Frame(self)
+        cuerpo = ttk.Frame(cuerpo_general)
         cuerpo.pack(fill="both", expand=True)
 
         catalogo_box = ttk.LabelFrame(cuerpo, text="Catálogo")
@@ -181,7 +193,9 @@ class CatalogoFrame(ttk.Frame):
         ttk.Label(agregar_box, text="Cantidad:").pack(side="left")
         self.cantidad_var = tk.IntVar(value=1)
         ttk.Spinbox(agregar_box, from_=1, to=99, width=5, textvariable=self.cantidad_var).pack(side="left", padx=5)
-        ttk.Button(agregar_box, text="Agregar al carrito", command=self._agregar_carrito).pack(side="left", padx=5)
+        ttk.Button(
+            agregar_box, text="+ Agregar al carrito", style="Accent.TButton", command=self._agregar_carrito
+        ).pack(side="left", padx=5)
 
         carrito_box = ttk.LabelFrame(cuerpo, text="Carrito")
         carrito_box.pack(side="left", fill="both", expand=True)
@@ -202,10 +216,16 @@ class CatalogoFrame(ttk.Frame):
 
         pie_carrito = ttk.Frame(carrito_box)
         pie_carrito.pack(fill="x", pady=5)
-        ttk.Button(pie_carrito, text="Quitar seleccionado", command=self._quitar_del_carrito).pack(side="left")
+        ttk.Button(
+            pie_carrito, text="Quitar", style="Ghost.TButton", command=self._quitar_del_carrito
+        ).pack(side="left")
         self.total_var = tk.StringVar(value="Total: S/ 0.00")
-        ttk.Label(pie_carrito, textvariable=self.total_var, font=("Segoe UI", 11, "bold")).pack(side="left", padx=15)
-        ttk.Button(pie_carrito, text="Confirmar pedido", command=self._confirmar_pedido).pack(side="right")
+        ttk.Label(pie_carrito, textvariable=self.total_var, style="Total.TLabel").pack(side="left", padx=15)
+        ttk.Button(
+            pie_carrito, text="Confirmar pedido ✓", style="Accent.TButton", command=self._confirmar_pedido
+        ).pack(side="right")
+
+        self._cargar_filtros()
 
     def _cargar_filtros(self):
         almacenes = db.query("SELECT id_almacen, nombre FROM Almacen ORDER BY nombre")
@@ -260,6 +280,7 @@ class CatalogoFrame(ttk.Frame):
                     r["cantidad_stock"],
                 ),
             )
+        styles.zebra(self.tree)
 
     def _agregar_carrito(self):
         seleccion = self.tree.selection()
@@ -317,6 +338,7 @@ class CatalogoFrame(ttk.Frame):
                     f"{subtotal:.2f}",
                 ),
             )
+        styles.zebra(self.tree_carrito)
         self.total_var.set(f"Total: S/ {total:.2f}")
 
     def _confirmar_pedido(self):

@@ -3,6 +3,7 @@ from tkinter import ttk, messagebox
 
 import auth
 import db
+import styles
 
 
 class LoginAdminFrame(ttk.Frame):
@@ -10,25 +11,31 @@ class LoginAdminFrame(ttk.Frame):
         super().__init__(master, padding=30)
         self.on_login = on_login
 
-        ttk.Label(self, text="Acceso de administrador", font=("Segoe UI", 16, "bold")).grid(
-            row=0, column=0, columnspan=2, pady=(0, 20)
+        ttk.Label(self, text="🛠️  Acceso de administrador", style="Section.TLabel", font=styles.FONT_HEADER).pack(
+            pady=(0, 20)
         )
-        ttk.Label(self, text="Usuario:").grid(row=1, column=0, sticky="w")
+
+        tarjeta = ttk.Frame(self, style="Card.TFrame", padding=25)
+        tarjeta.pack()
+
+        ttk.Label(tarjeta, text="Usuario:", style="Card.TLabel").grid(row=0, column=0, columnspan=2, sticky="w")
         self.user_var = tk.StringVar()
-        entry_user = ttk.Entry(self, textvariable=self.user_var, width=30)
-        entry_user.grid(row=2, column=0, columnspan=2, pady=(0, 10))
+        entry_user = ttk.Entry(tarjeta, textvariable=self.user_var, width=30)
+        entry_user.grid(row=1, column=0, columnspan=2, pady=(0, 10))
         entry_user.focus()
 
-        ttk.Label(self, text="Contraseña:").grid(row=3, column=0, sticky="w")
+        ttk.Label(tarjeta, text="Contraseña:", style="Card.TLabel").grid(row=2, column=0, columnspan=2, sticky="w")
         self.pass_var = tk.StringVar()
-        entry = ttk.Entry(self, textvariable=self.pass_var, show="*", width=30)
-        entry.grid(row=4, column=0, columnspan=2, pady=(0, 15))
+        entry = ttk.Entry(tarjeta, textvariable=self.pass_var, show="*", width=30)
+        entry.grid(row=3, column=0, columnspan=2, pady=(0, 15))
         entry.bind("<Return>", lambda e: self._login())
 
-        ttk.Button(self, text="Ingresar", command=self._login).grid(row=5, column=0, sticky="ew")
-        ttk.Button(self, text="Volver", command=lambda: self.master.event_generate("<<VolverInicio>>")).grid(
-            row=5, column=1, sticky="ew"
+        ttk.Button(tarjeta, text="Ingresar", style="Accent.TButton", command=self._login).grid(
+            row=4, column=0, sticky="ew", padx=(0, 5)
         )
+        ttk.Button(
+            tarjeta, text="Volver", style="Ghost.TButton", command=lambda: self.master.event_generate("<<VolverInicio>>")
+        ).grid(row=4, column=1, sticky="ew", padx=(5, 0))
 
     def _login(self):
         username = self.user_var.get().strip()
@@ -46,21 +53,24 @@ class LoginAdminFrame(ttk.Frame):
 
 class AdminFrame(ttk.Frame):
     def __init__(self, master):
-        super().__init__(master, padding=10)
+        super().__init__(master, padding=0)
 
-        header = ttk.Frame(self)
+        header = ttk.Frame(self, style="Header.TFrame", padding=(20, 14))
         header.pack(fill="x")
-        ttk.Label(header, text="Panel de administración", font=("Segoe UI", 13, "bold")).pack(side="left")
-        ttk.Button(header, text="Cerrar sesión", command=lambda: self.event_generate("<<VolverInicio>>")).pack(
-            side="right"
-        )
+        ttk.Label(header, text="🛠️  Panel de administración", style="Header.TLabel").pack(side="left")
+        ttk.Button(
+            header, text="Cerrar sesión", style="Accent.TButton", command=lambda: self.event_generate("<<VolverInicio>>")
+        ).pack(side="right")
 
-        notebook = ttk.Notebook(self)
-        notebook.pack(fill="both", expand=True, pady=10)
+        cuerpo = ttk.Frame(self, padding=15)
+        cuerpo.pack(fill="both", expand=True)
 
-        self.tab_precios = ttk.Frame(notebook, padding=10)
-        self.tab_stock = ttk.Frame(notebook, padding=10)
-        self.tab_reportes = ttk.Frame(notebook, padding=10)
+        notebook = ttk.Notebook(cuerpo)
+        notebook.pack(fill="both", expand=True)
+
+        self.tab_precios = ttk.Frame(notebook, style="Card.TFrame", padding=15)
+        self.tab_stock = ttk.Frame(notebook, style="Card.TFrame", padding=15)
+        self.tab_reportes = ttk.Frame(notebook, style="Card.TFrame", padding=15)
         notebook.add(self.tab_precios, text="Precios")
         notebook.add(self.tab_stock, text="Inventario")
         notebook.add(self.tab_reportes, text="Reportes")
@@ -85,13 +95,17 @@ class AdminFrame(ttk.Frame):
         self.tree_precios.pack(fill="both", expand=True)
         self.tree_precios.bind("<<TreeviewSelect>>", self._al_seleccionar_producto)
 
-        pie = ttk.Frame(self.tab_precios)
+        pie = ttk.Frame(self.tab_precios, style="Card.TFrame")
         pie.pack(fill="x", pady=8)
-        ttk.Label(pie, text="Nuevo precio (S/):").pack(side="left")
+        ttk.Label(pie, text="Nuevo precio (S/):", style="Card.TLabel").pack(side="left")
         self.nuevo_precio_var = tk.StringVar()
         ttk.Entry(pie, textvariable=self.nuevo_precio_var, width=12).pack(side="left", padx=5)
-        ttk.Button(pie, text="Guardar precio", command=self._guardar_precio).pack(side="left", padx=5)
-        ttk.Button(pie, text="Actualizar lista", command=self._cargar_precios).pack(side="right")
+        ttk.Button(pie, text="Guardar precio", style="Accent.TButton", command=self._guardar_precio).pack(
+            side="left", padx=5
+        )
+        ttk.Button(pie, text="Actualizar lista", style="Ghost.TButton", command=self._cargar_precios).pack(
+            side="right"
+        )
 
         self._cargar_precios()
 
@@ -113,6 +127,7 @@ class AdminFrame(ttk.Frame):
                 iid=str(r["id_producto"]),
                 values=(r["id_producto"], r["producto"], r["marca"], r["categoria"], f"{r['precio_base']:.2f}"),
             )
+        styles.zebra(self.tree_precios)
 
     def _al_seleccionar_producto(self, _event):
         seleccion = self.tree_precios.selection()
@@ -154,17 +169,22 @@ class AdminFrame(ttk.Frame):
         ]:
             self.tree_stock.heading(col, text=titulo)
             self.tree_stock.column(col, width=ancho)
-        self.tree_stock.tag_configure("critico", background="#ffd6d6")
         self.tree_stock.pack(fill="both", expand=True)
         self.tree_stock.bind("<<TreeviewSelect>>", self._al_seleccionar_inventario)
 
-        pie = ttk.Frame(self.tab_stock)
+        pie = ttk.Frame(self.tab_stock, style="Card.TFrame")
         pie.pack(fill="x", pady=8)
-        ttk.Label(pie, text=f"Nuevo stock (umbral crítico: {db.UMBRAL_STOCK_CRITICO}):").pack(side="left")
+        ttk.Label(pie, text=f"Nuevo stock (umbral crítico: {db.UMBRAL_STOCK_CRITICO}):", style="Card.TLabel").pack(
+            side="left"
+        )
         self.nuevo_stock_var = tk.StringVar()
         ttk.Entry(pie, textvariable=self.nuevo_stock_var, width=10).pack(side="left", padx=5)
-        ttk.Button(pie, text="Guardar stock", command=self._guardar_stock).pack(side="left", padx=5)
-        ttk.Button(pie, text="Actualizar lista", command=self._cargar_stock).pack(side="right")
+        ttk.Button(pie, text="Guardar stock", style="Accent.TButton", command=self._guardar_stock).pack(
+            side="left", padx=5
+        )
+        ttk.Button(pie, text="Actualizar lista", style="Ghost.TButton", command=self._cargar_stock).pack(
+            side="right"
+        )
 
         self._cargar_stock()
 
@@ -197,6 +217,7 @@ class AdminFrame(ttk.Frame):
                 ),
                 tags=tags,
             )
+        styles.zebra(self.tree_stock)
 
     def _al_seleccionar_inventario(self, _event):
         seleccion = self.tree_stock.selection()
@@ -229,13 +250,20 @@ class AdminFrame(ttk.Frame):
 
     # ---------- Reportes ----------
     def _armar_tab_reportes(self):
-        botones = ttk.Frame(self.tab_reportes)
+        botones = ttk.Frame(self.tab_reportes, style="Card.TFrame")
         botones.pack(fill="x")
-        ttk.Button(botones, text="Stock crítico", command=self._reporte_stock_critico).pack(side="left", padx=3)
-        ttk.Button(botones, text="Ventas por producto", command=self._reporte_ventas_producto).pack(
-            side="left", padx=3
-        )
-        ttk.Button(botones, text="Resumen general", command=self._reporte_resumen).pack(side="left", padx=3)
+        ttk.Button(
+            botones, text="⚠ Stock crítico", style="Secondary.TButton", command=self._reporte_stock_critico
+        ).pack(side="left", padx=3)
+        ttk.Button(
+            botones,
+            text="📈 Ventas por producto",
+            style="Secondary.TButton",
+            command=self._reporte_ventas_producto,
+        ).pack(side="left", padx=3)
+        ttk.Button(
+            botones, text="📊 Resumen general", style="Secondary.TButton", command=self._reporte_resumen
+        ).pack(side="left", padx=3)
 
         self.tree_reporte = ttk.Treeview(self.tab_reportes, show="headings", height=16)
         self.tree_reporte.pack(fill="both", expand=True, pady=10)
@@ -248,6 +276,7 @@ class AdminFrame(ttk.Frame):
             self.tree_reporte.column(col, width=140)
         for fila in filas:
             self.tree_reporte.insert("", "end", values=[fila[c] for c in columnas])
+        styles.zebra(self.tree_reporte)
 
     def _reporte_stock_critico(self):
         sql = """
