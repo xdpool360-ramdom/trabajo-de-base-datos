@@ -3,7 +3,7 @@ from tkinter import ttk
 
 _ASSETS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets")
 
-COLOR_BG = "#f1f3f8"
+COLOR_BG = "#eef1f7"
 COLOR_PRIMARY = "#132a4c"
 COLOR_PRIMARY_DARK = "#0b1c34"
 COLOR_ACCENT = "#ff5a36"
@@ -14,8 +14,16 @@ COLOR_CARD = "#ffffff"
 COLOR_BORDER = "#dde2ea"
 COLOR_SUCCESS = "#1f9d55"
 COLOR_DANGER = "#d7263d"
-COLOR_ROW_ALT = "#eef1f7"
+COLOR_ROW_ALT = "#f4f6fb"
 COLOR_CRITICO = "#ffd9d0"
+
+# Colores para gradientes (Canvas)
+GRAD_TOP = "#1b3a68"      # azul medio
+GRAD_BOTTOM = "#0b1c34"   # navy profundo
+GRAD_HERO_TOP = "#16325c"
+GRAD_HERO_BOTTOM = "#0a1930"
+COLOR_ACCENT_SOFT = "#fff0ec"
+COLOR_PRIMARY_SOFT = "#e8eef7"
 
 FONT_TITLE = ("Segoe UI", 30, "bold")
 FONT_SUBTITLE = ("Segoe UI", 12)

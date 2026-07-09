@@ -4,6 +4,7 @@ from tkinter import ttk, messagebox
 import auth
 import db
 import styles
+import widgets
 
 
 class LoginClienteFrame(ttk.Frame):
@@ -134,16 +135,25 @@ class CatalogoFrame(ttk.Frame):
         self.cliente = cliente
         self.carrito = {}  # id_variante -> dict(info, cantidad)
 
-        header = ttk.Frame(self, style="Header.TFrame", padding=(20, 14))
+        header = widgets.GradientBanner(self, styles.GRAD_TOP, styles.GRAD_BOTTOM, height=64)
         header.pack(fill="x")
-        ttk.Label(
-            header,
-            text=f"🛒 Hola, {cliente['nombre']} {cliente['apellido']}",
-            style="Header.TLabel",
-        ).pack(side="left")
-        ttk.Button(
-            header, text="Cerrar sesión", style="Accent.TButton", command=lambda: self.event_generate("<<VolverInicio>>")
-        ).pack(side="right")
+        btn_cerrar = ttk.Button(
+            header, text="Cerrar sesión", style="Accent.TButton",
+            command=lambda: self.event_generate("<<VolverInicio>>"),
+        )
+        saludo = f"🛒 Hola, {cliente['nombre']} {cliente['apellido']}"
+
+        def _hdr(_e=None):
+            header.delete("hdr")
+            header.create_text(
+                22, 32, text=saludo, anchor="w", fill="white",
+                font=("Segoe UI", 15, "bold"), tags="hdr",
+            )
+            header.coords(win_btn, header.winfo_width() - 22, 31)
+
+        win_btn = header.create_window(0, 0, window=btn_cerrar, anchor="e")
+        header.bind("<Configure>", lambda e: (header._redibujar(e), _hdr()), add="+")
+        _hdr()
 
         cuerpo_general = ttk.Frame(self, padding=15)
         cuerpo_general.pack(fill="both", expand=True)

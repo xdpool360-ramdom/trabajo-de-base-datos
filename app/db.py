@@ -14,7 +14,14 @@ def get_connection():
         "Trusted_Connection=yes;"
         "TrustServerCertificate=yes;"
     )
-    return pyodbc.connect(conn_str)
+    conn = pyodbc.connect(conn_str)
+    # Los datos de prueba se cargaron como UTF-8 crudo en columnas VARCHAR.
+    # Le indicamos a pyodbc que decodifique/codifique el texto como UTF-8 para
+    # que los acentos y la ñ se muestren correctamente (Almacén, Estándar, etc.).
+    conn.setdecoding(pyodbc.SQL_CHAR, encoding="utf-8")
+    conn.setdecoding(pyodbc.SQL_WCHAR, encoding="utf-8")
+    conn.setencoding(encoding="utf-8")
+    return conn
 
 
 def query(sql, params=()):

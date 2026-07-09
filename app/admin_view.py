@@ -5,6 +5,7 @@ from tkinter import ttk, messagebox, filedialog
 import auth
 import db
 import styles
+import widgets
 import reporte_word
 
 ESTADOS_PEDIDO = ["Todos", "Pendiente", "Pagado", "Enviado", "Entregado"]
@@ -59,15 +60,32 @@ class AdminFrame(ttk.Frame):
     def __init__(self, master):
         super().__init__(master, padding=0)
 
-        header = ttk.Frame(self, style="Header.TFrame", padding=(20, 14))
+        header = widgets.GradientBanner(self, styles.GRAD_TOP, styles.GRAD_BOTTOM, height=64)
         header.pack(fill="x")
-        ttk.Label(header, text="🛠️  Panel de administración", style="Header.TLabel").pack(side="left")
-        ttk.Button(
-            header, text="Cerrar sesión", style="Accent.TButton", command=lambda: self.event_generate("<<VolverInicio>>")
-        ).pack(side="right")
+        btn_cerrar = ttk.Button(
+            header, text="Cerrar sesión", style="Accent.TButton",
+            command=lambda: self.event_generate("<<VolverInicio>>"),
+        )
+
+        def _hdr(_e=None):
+            header.delete("hdr")
+            header.create_text(
+                22, 32, text="🛠️  Panel de administración", anchor="w", fill="white",
+                font=("Segoe UI", 15, "bold"), tags="hdr",
+            )
+            header.coords(win_btn, header.winfo_width() - 22, 31)
+
+        win_btn = header.create_window(0, 0, window=btn_cerrar, anchor="e")
+        header.bind("<Configure>", lambda e: (header._redibujar(e), _hdr()), add="+")
+        _hdr()
 
         cuerpo = ttk.Frame(self, padding=15)
         cuerpo.pack(fill="both", expand=True)
+
+        # ---- Fila de KPI cards ----
+        self.kpi_row = ttk.Frame(cuerpo)
+        self.kpi_row.pack(fill="x", pady=(0, 14))
+        self._armar_kpis()
 
         notebook = ttk.Notebook(cuerpo)
         notebook.pack(fill="both", expand=True)
@@ -85,6 +103,35 @@ class AdminFrame(ttk.Frame):
         self._armar_tab_stock()
         self._armar_tab_pedidos()
         self._armar_tab_reportes()
+
+    # ---------- KPI cards ----------
+    def _armar_kpis(self):
+        datos = db.query(
+            """
+            SELECT
+                (SELECT COUNT(*) FROM Producto) AS productos,
+                (SELECT ISNULL(SUM(total), 0) FROM Pedido) AS ventas,
+                (SELECT COUNT(*) FROM Pedido) AS pedidos,
+                (SELECT COUNT(*) FROM Inventario WHERE cantidad_stock < ?) AS criticos
+            """,
+            (db.UMBRAL_STOCK_CRITICO,),
+        )[0]
+
+        tarjetas = [
+            ("Productos", str(datos["productos"]), styles.COLOR_PRIMARY, "📦"),
+            ("Ventas acumuladas", styles.moneda(datos["ventas"]), styles.COLOR_SUCCESS, "💰"),
+            ("Pedidos", str(datos["pedidos"]), styles.COLOR_PRIMARY, "🧾"),
+            ("Alertas de stock", str(datos["criticos"]), styles.COLOR_DANGER, "⚠"),
+        ]
+        for i, (titulo, valor, color, emoji) in enumerate(tarjetas):
+            card = widgets.crear_kpi_card(self.kpi_row, titulo, valor, color_valor=color, emoji=emoji)
+            card.grid(row=0, column=i, padx=(0 if i == 0 else 10, 0), sticky="ew")
+            self.kpi_row.columnconfigure(i, weight=1)
+
+    def _refrescar_kpis(self):
+        for w in self.kpi_row.winfo_children():
+            w.destroy()
+        self._armar_kpis()
 
     # ---------- Precios ----------
     def _armar_tab_precios(self):
@@ -178,6 +225,7 @@ class AdminFrame(ttk.Frame):
         db.execute("UPDATE Producto SET precio_base = ? WHERE id_producto = ?", (nuevo_precio, id_producto))
         messagebox.showinfo("Precio actualizado", "El precio se guardó correctamente.")
         self._cargar_precios()
+        self._refrescar_kpis()
 
     # ---------- Inventario ----------
     def _armar_tab_stock(self):
@@ -299,6 +347,7 @@ class AdminFrame(ttk.Frame):
         )
         messagebox.showinfo("Stock actualizado", "El stock se guardó correctamente.")
         self._cargar_stock()
+        self._refrescar_kpis()
 
     # ---------- Pedidos ----------
     def _armar_tab_pedidos(self):

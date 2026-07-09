@@ -3,6 +3,7 @@ from tkinter import ttk, messagebox
 
 import db
 import styles
+import widgets
 from cliente_view import LoginClienteFrame, CatalogoFrame
 from admin_view import LoginAdminFrame, AdminFrame
 
@@ -11,8 +12,8 @@ class App(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Total Sport - Gestión de Inventario y Ventas")
-        self.geometry("1050x680")
-        self.minsize(950, 600)
+        self.geometry("1080x740")
+        self.minsize(980, 660)
         styles.aplicar_estilos(self)
 
         self.bind("<<VolverInicio>>", lambda e: self.mostrar_inicio())
@@ -43,65 +44,88 @@ class App(tk.Tk):
     def mostrar_inicio(self):
         self._limpiar()
 
-        banner = ttk.Frame(self.contenedor, style="Header.TFrame")
-        banner.pack(fill="x")
+        # ---- Hero con gradiente ----
+        hero = widgets.GradientBanner(
+            self.contenedor, styles.GRAD_HERO_TOP, styles.GRAD_HERO_BOTTOM, height=230
+        )
+        hero.pack(fill="x")
 
-        banner_contenido = ttk.Frame(banner, style="Header.TFrame", padding=(40, 55, 40, 55))
-        banner_contenido.pack(fill="x")
+        def _texto_hero(_e=None):
+            hero.delete("hero_txt")
+            hero.create_text(
+                52, 96, text="🏀  TOTAL SPORT", anchor="w", fill="white",
+                font=("Segoe UI", 34, "bold"), tags="hero_txt",
+            )
+            hero.create_text(
+                54, 148, text="Gestión integrada de inventario y ventas · Retail deportivo",
+                anchor="w", fill="#c3d0e4", font=("Segoe UI", 13), tags="hero_txt",
+            )
 
-        ttk.Label(banner_contenido, text="🏀  TOTAL SPORT", style="Title.TLabel").pack(anchor="w")
-        ttk.Label(
-            banner_contenido,
-            text="Gestión integrada de inventario y ventas · Retail deportivo",
-            style="Subtitle.TLabel",
-        ).pack(anchor="w", pady=(6, 0))
+        hero.bind("<Configure>", lambda e: (hero._redibujar(e), _texto_hero()), add="+")
+        _texto_hero()
 
-        franja = tk.Frame(self.contenedor, bg=styles.COLOR_ACCENT, height=6)
-        franja.pack(fill="x")
+        # ---- Cuerpo con las dos tarjetas ----
+        cuerpo = ttk.Frame(self.contenedor, padding=(40, 30))
+        cuerpo.pack(expand=True, fill="both")
 
-        cuerpo = ttk.Frame(self.contenedor, padding=40)
-        cuerpo.pack(expand=True)
-
-        ttk.Label(cuerpo, text="¿Cómo quieres ingresar?", style="Section.TLabel").pack(pady=(0, 20))
+        ttk.Label(cuerpo, text="¿Cómo quieres ingresar?", style="Section.TLabel").pack(pady=(0, 22))
 
         opciones = ttk.Frame(cuerpo)
         opciones.pack()
 
-        tarjeta_cliente = ttk.Frame(opciones, style="Card.TFrame", padding=25)
-        tarjeta_cliente.grid(row=0, column=0, padx=15, sticky="n")
-        ttk.Label(tarjeta_cliente, text="🛒", style="Card.TLabel", font=("Segoe UI", 28)).pack()
-        ttk.Label(tarjeta_cliente, text="Cliente", style="Card.TLabel", font=styles.FONT_HEADER).pack(pady=(5, 2))
-        ttk.Label(
-            tarjeta_cliente,
-            text="Navega el catálogo, arma tu\ncarrito y confirma tu pedido.",
-            style="CardMuted.TLabel",
-            justify="center",
-        ).pack(pady=(0, 15))
-        ttk.Button(
-            tarjeta_cliente, text="Ingresar como cliente", style="Accent.TButton", command=self.mostrar_login_cliente
-        ).pack(fill="x")
-
-        tarjeta_admin = ttk.Frame(opciones, style="Card.TFrame", padding=25)
-        tarjeta_admin.grid(row=0, column=1, padx=15, sticky="n")
-        ttk.Label(tarjeta_admin, text="🛠️", style="Card.TLabel", font=("Segoe UI", 28)).pack()
-        ttk.Label(tarjeta_admin, text="Administrador", style="Card.TLabel", font=styles.FONT_HEADER).pack(
-            pady=(5, 2)
+        self._tarjeta_inicio(
+            opciones, 0, "🛒", "Cliente",
+            "Navega el catálogo, arma tu carrito\ny confirma tu pedido en línea.",
+            "Ingresar  →", styles.COLOR_ACCENT, self.mostrar_login_cliente,
         )
-        ttk.Label(
-            tarjeta_admin,
-            text="Gestiona precios, inventario\ny consulta reportes.",
-            style="CardMuted.TLabel",
-            justify="center",
-        ).pack(pady=(0, 15))
-        ttk.Button(
-            tarjeta_admin, text="Ingresar como administrador", style="Secondary.TButton", command=self.mostrar_login_admin
-        ).pack(fill="x")
+        self._tarjeta_inicio(
+            opciones, 1, "🛠️", "Administrador",
+            "Gestiona precios, inventario, pedidos\ny genera reportes ejecutivos.",
+            "Ingresar  →", styles.COLOR_PRIMARY, self.mostrar_login_admin,
+        )
 
         ttk.Label(
             self.contenedor,
             text="Universidad Nacional de Moquegua · Base de Datos I · Proyecto Total Sport",
             style="Footer.TLabel",
         ).pack(side="bottom", pady=12)
+
+    def _tarjeta_inicio(self, master, col, emoji, titulo, descripcion, cta, color_cta, comando):
+        card = widgets.HoverCard(master, on_click=comando)
+        card.grid(row=0, column=col, padx=16, sticky="n")
+
+        interior = tk.Frame(card, bg=styles.COLOR_CARD)
+        interior.pack(padx=34, pady=28)
+        card.registrar_hijo(interior)
+
+        disco = tk.Label(
+            interior,
+            text=emoji,
+            bg=styles.COLOR_PRIMARY_SOFT if color_cta == styles.COLOR_PRIMARY else styles.COLOR_ACCENT_SOFT,
+            font=("Segoe UI", 30),
+            width=3,
+            height=1,
+        )
+        disco.pack()
+        card.registrar_hijo(disco)
+
+        lbl_titulo = tk.Label(interior, text=titulo, bg=styles.COLOR_CARD, fg=styles.COLOR_TEXT, font=("Segoe UI", 16, "bold"))
+        lbl_titulo.pack(pady=(14, 4))
+        card.registrar_hijo(lbl_titulo)
+
+        lbl_desc = tk.Label(
+            interior, text=descripcion, bg=styles.COLOR_CARD, fg=styles.COLOR_MUTED,
+            font=("Segoe UI", 10), justify="center",
+        )
+        lbl_desc.pack(pady=(0, 18))
+        card.registrar_hijo(lbl_desc)
+
+        cta_lbl = tk.Label(
+            interior, text=cta, bg=color_cta, fg="white", font=("Segoe UI", 11, "bold"),
+            padx=28, pady=9,
+        )
+        cta_lbl.pack()
+        card.registrar_hijo(cta_lbl)
 
     def mostrar_login_cliente(self):
         self._limpiar()
