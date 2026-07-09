@@ -1,0 +1,374 @@
+import tkinter as tk
+from tkinter import ttk, messagebox
+
+import auth
+import db
+
+
+class LoginClienteFrame(ttk.Frame):
+    def __init__(self, master, on_login):
+        super().__init__(master, padding=20)
+        self.on_login = on_login
+
+        ttk.Label(self, text="Acceso de cliente", font=("Segoe UI", 16, "bold")).pack(pady=(0, 15))
+
+        notebook = ttk.Notebook(self)
+        notebook.pack()
+
+        tab_login = ttk.Frame(notebook, padding=20)
+        tab_registro = ttk.Frame(notebook, padding=20)
+        notebook.add(tab_login, text="Iniciar sesión")
+        notebook.add(tab_registro, text="Crear cuenta")
+
+        self._armar_tab_login(tab_login)
+        self._armar_tab_registro(tab_registro)
+
+        ttk.Button(self, text="Volver", command=lambda: self.master.event_generate("<<VolverInicio>>")).pack(
+            pady=15
+        )
+
+    def _armar_tab_login(self, tab):
+        ttk.Label(tab, text="Usuario:").grid(row=0, column=0, sticky="w")
+        self.login_user_var = tk.StringVar()
+        entry_user = ttk.Entry(tab, textvariable=self.login_user_var, width=30)
+        entry_user.grid(row=1, column=0, pady=(0, 10))
+        entry_user.focus()
+
+        ttk.Label(tab, text="Contraseña:").grid(row=2, column=0, sticky="w")
+        self.login_pass_var = tk.StringVar()
+        entry_pass = ttk.Entry(tab, textvariable=self.login_pass_var, show="*", width=30)
+        entry_pass.grid(row=3, column=0, pady=(0, 15))
+        entry_pass.bind("<Return>", lambda e: self._login())
+
+        ttk.Button(tab, text="Ingresar", command=self._login).grid(row=4, column=0, sticky="ew")
+
+    def _armar_tab_registro(self, tab):
+        ttk.Label(tab, text="Correo registrado como cliente:").grid(row=0, column=0, sticky="w")
+        self.reg_email_var = tk.StringVar()
+        ttk.Entry(tab, textvariable=self.reg_email_var, width=30).grid(row=1, column=0, pady=(0, 10))
+
+        ttk.Label(tab, text="Nuevo usuario:").grid(row=2, column=0, sticky="w")
+        self.reg_user_var = tk.StringVar()
+        ttk.Entry(tab, textvariable=self.reg_user_var, width=30).grid(row=3, column=0, pady=(0, 10))
+
+        ttk.Label(tab, text="Contraseña:").grid(row=4, column=0, sticky="w")
+        self.reg_pass_var = tk.StringVar()
+        ttk.Entry(tab, textvariable=self.reg_pass_var, show="*", width=30).grid(row=5, column=0, pady=(0, 10))
+
+        ttk.Label(tab, text="Confirmar contraseña:").grid(row=6, column=0, sticky="w")
+        self.reg_pass2_var = tk.StringVar()
+        ttk.Entry(tab, textvariable=self.reg_pass2_var, show="*", width=30).grid(row=7, column=0, pady=(0, 15))
+
+        ttk.Button(tab, text="Registrar", command=self._registrar).grid(row=8, column=0, sticky="ew")
+
+    def _login(self):
+        username = self.login_user_var.get().strip()
+        password = self.login_pass_var.get()
+        if not username or not password:
+            messagebox.showwarning("Faltan datos", "Escribe tu usuario y contraseña.")
+            return
+
+        rows = db.query("SELECT * FROM Usuario WHERE username = ? AND rol = 'cliente'", (username,))
+        if not rows or not auth.verificar_password(password, rows[0]["salt"], rows[0]["password_hash"]):
+            messagebox.showerror("Acceso denegado", "Usuario o contraseña incorrectos.")
+            return
+
+        cliente = db.query("SELECT * FROM Cliente WHERE id_cliente = ?", (rows[0]["id_cliente"],))[0]
+        self.on_login(cliente)
+
+    def _registrar(self):
+        email = self.reg_email_var.get().strip()
+        username = self.reg_user_var.get().strip()
+        password = self.reg_pass_var.get()
+        password2 = self.reg_pass2_var.get()
+
+        if not email or not username or not password:
+            messagebox.showwarning("Faltan datos", "Completa correo, usuario y contraseña.")
+            return
+        if password != password2:
+            messagebox.showerror("Las contraseñas no coinciden", "Verifica la contraseña y su confirmación.")
+            return
+        if len(password) < 4:
+            messagebox.showerror("Contraseña muy corta", "Usa al menos 4 caracteres.")
+            return
+
+        clientes = db.query("SELECT * FROM Cliente WHERE email = ?", (email,))
+        if not clientes:
+            messagebox.showerror(
+                "Cliente no encontrado", "Ese correo no corresponde a ningún cliente registrado."
+            )
+            return
+        id_cliente = clientes[0]["id_cliente"]
+
+        if db.query("SELECT 1 FROM Usuario WHERE id_cliente = ?", (id_cliente,)):
+            messagebox.showerror("Cuenta existente", "Este cliente ya tiene una cuenta creada.")
+            return
+        if db.query("SELECT 1 FROM Usuario WHERE username = ?", (username,)):
+            messagebox.showerror("Usuario ocupado", "Ese nombre de usuario ya está en uso.")
+            return
+
+        salt = auth.generar_salt()
+        password_hash = auth.hash_password(password, salt)
+        db.execute(
+            "INSERT INTO Usuario (username, password_hash, salt, rol, id_cliente) VALUES (?, ?, ?, 'cliente', ?)",
+            (username, password_hash, salt, id_cliente),
+        )
+        messagebox.showinfo("Cuenta creada", "Tu cuenta se creó correctamente. Ya puedes iniciar sesión.")
+        self.login_user_var.set(username)
+        self.login_pass_var.set("")
+
+
+class CatalogoFrame(ttk.Frame):
+    def __init__(self, master, cliente):
+        super().__init__(master, padding=10)
+        self.cliente = cliente
+        self.carrito = {}  # id_variante -> dict(info, cantidad)
+
+        header = ttk.Frame(self)
+        header.pack(fill="x")
+        ttk.Label(
+            header,
+            text=f"Hola, {cliente['nombre']} {cliente['apellido']}",
+            font=("Segoe UI", 13, "bold"),
+        ).pack(side="left")
+        ttk.Button(header, text="Cerrar sesión", command=lambda: self.event_generate("<<VolverInicio>>")).pack(
+            side="right"
+        )
+
+        filtros = ttk.Frame(self)
+        filtros.pack(fill="x", pady=10)
+
+        ttk.Label(filtros, text="Tienda:").grid(row=0, column=0, sticky="w")
+        self.almacen_var = tk.StringVar()
+        self.almacen_combo = ttk.Combobox(filtros, textvariable=self.almacen_var, state="readonly", width=25)
+        self.almacen_combo.grid(row=0, column=1, padx=5)
+        self.almacen_combo.bind("<<ComboboxSelected>>", lambda e: self._cargar_catalogo())
+
+        ttk.Label(filtros, text="Categoría:").grid(row=0, column=2, sticky="w")
+        self.categoria_var = tk.StringVar()
+        self.categoria_combo = ttk.Combobox(filtros, textvariable=self.categoria_var, state="readonly", width=18)
+        self.categoria_combo.grid(row=0, column=3, padx=5)
+        self.categoria_combo.bind("<<ComboboxSelected>>", lambda e: self._cargar_catalogo())
+
+        self._cargar_filtros()
+
+        cuerpo = ttk.Frame(self)
+        cuerpo.pack(fill="both", expand=True)
+
+        catalogo_box = ttk.LabelFrame(cuerpo, text="Catálogo")
+        catalogo_box.pack(side="left", fill="both", expand=True, padx=(0, 10))
+
+        columnas = ("producto", "marca", "talla", "color", "sku", "precio", "stock")
+        self.tree = ttk.Treeview(catalogo_box, columns=columnas, show="headings", height=18)
+        for col, ancho, titulo in [
+            ("producto", 180, "Producto"),
+            ("marca", 90, "Marca"),
+            ("talla", 50, "Talla"),
+            ("color", 70, "Color"),
+            ("sku", 130, "SKU"),
+            ("precio", 80, "Precio"),
+            ("stock", 60, "Stock"),
+        ]:
+            self.tree.heading(col, text=titulo)
+            self.tree.column(col, width=ancho)
+        self.tree.pack(fill="both", expand=True, side="left")
+        scroll = ttk.Scrollbar(catalogo_box, orient="vertical", command=self.tree.yview)
+        self.tree.configure(yscrollcommand=scroll.set)
+        scroll.pack(side="right", fill="y")
+
+        agregar_box = ttk.Frame(catalogo_box)
+        agregar_box.pack(fill="x", pady=5)
+        ttk.Label(agregar_box, text="Cantidad:").pack(side="left")
+        self.cantidad_var = tk.IntVar(value=1)
+        ttk.Spinbox(agregar_box, from_=1, to=99, width=5, textvariable=self.cantidad_var).pack(side="left", padx=5)
+        ttk.Button(agregar_box, text="Agregar al carrito", command=self._agregar_carrito).pack(side="left", padx=5)
+
+        carrito_box = ttk.LabelFrame(cuerpo, text="Carrito")
+        carrito_box.pack(side="left", fill="both", expand=True)
+
+        col_carrito = ("producto", "talla", "color", "cantidad", "precio", "subtotal")
+        self.tree_carrito = ttk.Treeview(carrito_box, columns=col_carrito, show="headings", height=14)
+        for col, ancho, titulo in [
+            ("producto", 150, "Producto"),
+            ("talla", 45, "Talla"),
+            ("color", 60, "Color"),
+            ("cantidad", 60, "Cant."),
+            ("precio", 70, "Precio"),
+            ("subtotal", 80, "Subtotal"),
+        ]:
+            self.tree_carrito.heading(col, text=titulo)
+            self.tree_carrito.column(col, width=ancho)
+        self.tree_carrito.pack(fill="both", expand=True)
+
+        pie_carrito = ttk.Frame(carrito_box)
+        pie_carrito.pack(fill="x", pady=5)
+        ttk.Button(pie_carrito, text="Quitar seleccionado", command=self._quitar_del_carrito).pack(side="left")
+        self.total_var = tk.StringVar(value="Total: S/ 0.00")
+        ttk.Label(pie_carrito, textvariable=self.total_var, font=("Segoe UI", 11, "bold")).pack(side="left", padx=15)
+        ttk.Button(pie_carrito, text="Confirmar pedido", command=self._confirmar_pedido).pack(side="right")
+
+    def _cargar_filtros(self):
+        almacenes = db.query("SELECT id_almacen, nombre FROM Almacen ORDER BY nombre")
+        self.almacenes_map = {a["nombre"]: a["id_almacen"] for a in almacenes}
+        self.almacen_combo["values"] = list(self.almacenes_map.keys())
+        if almacenes:
+            self.almacen_combo.current(0)
+
+        categorias = db.query("SELECT id_categoria, nombre FROM Categoria ORDER BY nombre")
+        self.categorias_map = {c["nombre"]: c["id_categoria"] for c in categorias}
+        self.categoria_combo["values"] = ["Todas"] + list(self.categorias_map.keys())
+        self.categoria_combo.current(0)
+
+        self._cargar_catalogo()
+
+    def _cargar_catalogo(self):
+        for row in self.tree.get_children():
+            self.tree.delete(row)
+
+        id_almacen = self.almacenes_map.get(self.almacen_var.get())
+        if id_almacen is None:
+            return
+
+        sql = """
+            SELECT vp.id_variante, p.nombre AS producto, m.nombre AS marca,
+                   vp.talla, vp.color, vp.sku, p.precio_base, i.cantidad_stock
+            FROM Inventario i
+            JOIN Variante_Producto vp ON i.id_variante = vp.id_variante
+            JOIN Producto p ON vp.id_producto = p.id_producto
+            JOIN Marca m ON p.id_marca = m.id_marca
+            WHERE i.id_almacen = ? AND i.cantidad_stock > 0
+        """
+        params = [id_almacen]
+        categoria_sel = self.categoria_var.get()
+        if categoria_sel and categoria_sel != "Todas":
+            sql += " AND p.id_categoria = ?"
+            params.append(self.categorias_map[categoria_sel])
+        sql += " ORDER BY p.nombre, vp.talla, vp.color"
+
+        for r in db.query(sql, tuple(params)):
+            self.tree.insert(
+                "",
+                "end",
+                iid=str(r["id_variante"]),
+                values=(
+                    r["producto"],
+                    r["marca"],
+                    r["talla"],
+                    r["color"],
+                    r["sku"],
+                    f"{r['precio_base']:.2f}",
+                    r["cantidad_stock"],
+                ),
+            )
+
+    def _agregar_carrito(self):
+        seleccion = self.tree.selection()
+        if not seleccion:
+            messagebox.showinfo("Selecciona un producto", "Elige una fila del catálogo primero.")
+            return
+        id_variante = int(seleccion[0])
+        valores = self.tree.item(seleccion[0], "values")
+        producto, marca, talla, color, sku, precio, stock = valores
+        cantidad = self.cantidad_var.get()
+
+        ya_en_carrito = self.carrito.get(id_variante, {}).get("cantidad", 0)
+        if cantidad + ya_en_carrito > int(stock):
+            messagebox.showwarning("Stock insuficiente", f"Solo hay {stock} unidades disponibles de este producto.")
+            return
+
+        if id_variante in self.carrito:
+            self.carrito[id_variante]["cantidad"] += cantidad
+        else:
+            self.carrito[id_variante] = {
+                "producto": producto,
+                "talla": talla,
+                "color": color,
+                "precio": float(precio),
+                "cantidad": cantidad,
+                "id_almacen": self.almacenes_map[self.almacen_var.get()],
+            }
+        self._refrescar_carrito()
+
+    def _quitar_del_carrito(self):
+        seleccion = self.tree_carrito.selection()
+        if not seleccion:
+            return
+        id_variante = int(seleccion[0])
+        del self.carrito[id_variante]
+        self._refrescar_carrito()
+
+    def _refrescar_carrito(self):
+        for row in self.tree_carrito.get_children():
+            self.tree_carrito.delete(row)
+        total = 0.0
+        for id_variante, item in self.carrito.items():
+            subtotal = item["precio"] * item["cantidad"]
+            total += subtotal
+            self.tree_carrito.insert(
+                "",
+                "end",
+                iid=str(id_variante),
+                values=(
+                    item["producto"],
+                    item["talla"],
+                    item["color"],
+                    item["cantidad"],
+                    f"{item['precio']:.2f}",
+                    f"{subtotal:.2f}",
+                ),
+            )
+        self.total_var.set(f"Total: S/ {total:.2f}")
+
+    def _confirmar_pedido(self):
+        if not self.carrito:
+            messagebox.showinfo("Carrito vacío", "Agrega al menos un producto antes de confirmar.")
+            return
+
+        conn = db.get_connection()
+        try:
+            cur = conn.cursor()
+            total = sum(item["precio"] * item["cantidad"] for item in self.carrito.values())
+
+            cur.execute(
+                "INSERT INTO Pedido (id_cliente, fecha_compra, estado_pedido, total) "
+                "OUTPUT INSERTED.id_pedido VALUES (?, GETDATE(), 'Pagado', ?)",
+                (self.cliente["id_cliente"], total),
+            )
+            id_pedido = cur.fetchone()[0]
+
+            for id_variante, item in self.carrito.items():
+                cur.execute(
+                    "SELECT cantidad_stock FROM Inventario WHERE id_variante = ? AND id_almacen = ?",
+                    (id_variante, item["id_almacen"]),
+                )
+                stock_actual = cur.fetchone()[0]
+                if stock_actual < item["cantidad"]:
+                    conn.rollback()
+                    messagebox.showerror(
+                        "Stock insuficiente",
+                        f"El stock de {item['producto']} cambió. Vuelve a revisar el catálogo.",
+                    )
+                    self._cargar_catalogo()
+                    return
+
+                cur.execute(
+                    "INSERT INTO Detalle_Pedido (id_pedido, id_variante, cantidad, precio_unitario) "
+                    "VALUES (?, ?, ?, ?)",
+                    (id_pedido, id_variante, item["cantidad"], item["precio"]),
+                )
+                cur.execute(
+                    "UPDATE Inventario SET cantidad_stock = cantidad_stock - ?, "
+                    "fecha_ultima_actualizacion = GETDATE() WHERE id_variante = ? AND id_almacen = ?",
+                    (item["cantidad"], id_variante, item["id_almacen"]),
+                )
+
+            conn.commit()
+            messagebox.showinfo("Pedido confirmado", f"Pedido #{id_pedido} registrado. Total: S/ {total:.2f}")
+            self.carrito.clear()
+            self._refrescar_carrito()
+            self._cargar_catalogo()
+        except Exception as exc:
+            conn.rollback()
+            messagebox.showerror("Error al confirmar el pedido", str(exc))
+        finally:
+            conn.close()

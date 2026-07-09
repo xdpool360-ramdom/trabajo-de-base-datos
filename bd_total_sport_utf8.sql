@@ -1,13 +1,10 @@
 ﻿USE [master]
 GO
 /****** Object:  Database [Tienda_Total_Sport]    Script Date: 7/07/2026 21:44:05 ******/
+-- Nota: se usan las rutas de datos por defecto del servidor (sin FILENAME fijo)
+-- para que el script funcione en cualquier instalación de SQL Server, sin
+-- importar la versión (MSSQL15, MSSQL17, etc.) ni el nombre de instancia.
 CREATE DATABASE [Tienda_Total_Sport]
- CONTAINMENT = NONE
- ON  PRIMARY 
-( NAME = N'Tienda_Total_Sport', FILENAME = N'C:\Program Files\Microsoft SQL Server\MSSQL15.MSSQLSERVER\MSSQL\DATA\Tienda_Total_Sport.mdf' , SIZE = 8192KB , MAXSIZE = UNLIMITED, FILEGROWTH = 65536KB )
- LOG ON 
-( NAME = N'Tienda_Total_Sport_log', FILENAME = N'C:\Program Files\Microsoft SQL Server\MSSQL15.MSSQLSERVER\MSSQL\DATA\Tienda_Total_Sport_log.ldf' , SIZE = 8192KB , MAXSIZE = 2048GB , FILEGROWTH = 65536KB )
- WITH CATALOG_COLLATION = DATABASE_DEFAULT
 GO
 ALTER DATABASE [Tienda_Total_Sport] SET COMPATIBILITY_LEVEL = 150
 GO
@@ -294,6 +291,28 @@ UNIQUE NONCLUSTERED
 )WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
 ) ON [PRIMARY]
 GO
+/****** Object:  Table [dbo].[Usuario]    Script Date: 09/07/2026 ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+CREATE TABLE [dbo].[Usuario](
+	[id_usuario] [int] IDENTITY(1,1) NOT NULL,
+	[username] [varchar](50) NOT NULL,
+	[password_hash] [varchar](64) NOT NULL,
+	[salt] [varchar](32) NOT NULL,
+	[rol] [varchar](20) NOT NULL,
+	[id_cliente] [int] NULL,
+PRIMARY KEY CLUSTERED
+(
+	[id_usuario] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY],
+UNIQUE NONCLUSTERED
+(
+	[username] ASC
+)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
+) ON [PRIMARY]
+GO
 ALTER TABLE [dbo].[Cliente] ADD  DEFAULT (getdate()) FOR [fecha_registro]
 GO
 ALTER TABLE [dbo].[Inventario] ADD  DEFAULT ((0)) FOR [cantidad_stock]
@@ -344,6 +363,9 @@ REFERENCES [dbo].[Marca] ([id_marca])
 GO
 ALTER TABLE [dbo].[Variante_Producto]  WITH CHECK ADD FOREIGN KEY([id_producto])
 REFERENCES [dbo].[Producto] ([id_producto])
+GO
+ALTER TABLE [dbo].[Usuario]  WITH CHECK ADD FOREIGN KEY([id_cliente])
+REFERENCES [dbo].[Cliente] ([id_cliente])
 GO
 USE [master]
 GO
