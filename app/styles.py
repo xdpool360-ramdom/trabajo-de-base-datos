@@ -132,3 +132,48 @@ def zebra(tree):
         base = "critico" if "critico" in tags else ("odd" if i % 2 else "even")
         otros = [t for t in tags if t not in ("odd", "even", "critico")]
         tree.item(iid, tags=[base] + otros)
+
+
+def moneda(valor):
+    """Formatea un monto con separador de miles: S/ 1,234.56"""
+    try:
+        return f"S/ {float(valor):,.2f}"
+    except (TypeError, ValueError):
+        return "S/ 0.00"
+
+
+def _valor_orden(texto):
+    limpio = texto.replace("S/", "").replace(",", "").strip()
+    try:
+        return (0, float(limpio))
+    except ValueError:
+        return (1, texto.lower())
+
+
+def hacer_ordenable(tree, columnas, on_after_sort=None):
+    """Permite ordenar un Treeview haciendo clic en cada encabezado (asc/desc)."""
+    estado = {"col": None, "inverso": False}
+
+    def ordenar_por(col):
+        inverso = estado["col"] == col and not estado["inverso"]
+        filas = [(tree.set(iid, col), iid) for iid in tree.get_children("")]
+        filas.sort(key=lambda par: _valor_orden(par[0]), reverse=inverso)
+        for indice, (_valor, iid) in enumerate(filas):
+            tree.move(iid, "", indice)
+        estado["col"] = col
+        estado["inverso"] = inverso
+        zebra(tree)
+        if on_after_sort:
+            on_after_sort()
+
+    for col in columnas:
+        titulo_actual = tree.heading(col, "text")
+        tree.heading(col, text=titulo_actual, command=lambda c=col: ordenar_por(c))
+
+
+def mostrar_vacio(tree, mensaje="No se encontraron resultados."):
+    """Inserta una fila informativa cuando el Treeview no tiene datos."""
+    columnas = tree["columns"]
+    valores = [mensaje] + [""] * (len(columnas) - 1)
+    tree.insert("", "end", values=valores, tags=("vacio",))
+    tree.tag_configure("vacio", foreground=COLOR_MUTED)

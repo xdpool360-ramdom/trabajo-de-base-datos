@@ -149,22 +149,36 @@ class CatalogoFrame(ttk.Frame):
         cuerpo_general.pack(fill="both", expand=True)
         self._cuerpo_general = cuerpo_general
 
-        filtros = ttk.Frame(cuerpo_general)
+        notebook = ttk.Notebook(cuerpo_general)
+        notebook.pack(fill="both", expand=True)
+
+        tab_comprar = ttk.Frame(notebook, padding=10)
+        self.tab_pedidos = ttk.Frame(notebook, padding=10)
+        notebook.add(tab_comprar, text="🛍️ Comprar")
+        notebook.add(self.tab_pedidos, text="📦 Mis pedidos")
+
+        filtros = ttk.Frame(tab_comprar)
         filtros.pack(fill="x", pady=(0, 10))
 
         ttk.Label(filtros, text="Tienda:").grid(row=0, column=0, sticky="w")
         self.almacen_var = tk.StringVar()
-        self.almacen_combo = ttk.Combobox(filtros, textvariable=self.almacen_var, state="readonly", width=25)
+        self.almacen_combo = ttk.Combobox(filtros, textvariable=self.almacen_var, state="readonly", width=22)
         self.almacen_combo.grid(row=0, column=1, padx=5)
         self.almacen_combo.bind("<<ComboboxSelected>>", lambda e: self._cargar_catalogo())
 
         ttk.Label(filtros, text="Categoría:").grid(row=0, column=2, sticky="w")
         self.categoria_var = tk.StringVar()
-        self.categoria_combo = ttk.Combobox(filtros, textvariable=self.categoria_var, state="readonly", width=18)
+        self.categoria_combo = ttk.Combobox(filtros, textvariable=self.categoria_var, state="readonly", width=16)
         self.categoria_combo.grid(row=0, column=3, padx=5)
         self.categoria_combo.bind("<<ComboboxSelected>>", lambda e: self._cargar_catalogo())
 
-        cuerpo = ttk.Frame(cuerpo_general)
+        ttk.Label(filtros, text="🔎 Buscar:").grid(row=0, column=4, sticky="w", padx=(10, 0))
+        self.buscar_var = tk.StringVar()
+        entry_buscar = ttk.Entry(filtros, textvariable=self.buscar_var, width=22)
+        entry_buscar.grid(row=0, column=5, padx=5)
+        entry_buscar.bind("<KeyRelease>", lambda e: self._cargar_catalogo())
+
+        cuerpo = ttk.Frame(tab_comprar)
         cuerpo.pack(fill="both", expand=True)
 
         catalogo_box = ttk.LabelFrame(cuerpo, text="Catálogo")
@@ -183,6 +197,7 @@ class CatalogoFrame(ttk.Frame):
         ]:
             self.tree.heading(col, text=titulo)
             self.tree.column(col, width=ancho)
+        styles.hacer_ordenable(self.tree, columnas)
         self.tree.pack(fill="both", expand=True, side="left")
         scroll = ttk.Scrollbar(catalogo_box, orient="vertical", command=self.tree.yview)
         self.tree.configure(yscrollcommand=scroll.set)
@@ -212,6 +227,7 @@ class CatalogoFrame(ttk.Frame):
         ]:
             self.tree_carrito.heading(col, text=titulo)
             self.tree_carrito.column(col, width=ancho)
+        styles.hacer_ordenable(self.tree_carrito, col_carrito)
         self.tree_carrito.pack(fill="both", expand=True)
 
         pie_carrito = ttk.Frame(carrito_box)
@@ -225,7 +241,100 @@ class CatalogoFrame(ttk.Frame):
             pie_carrito, text="Confirmar pedido ✓", style="Accent.TButton", command=self._confirmar_pedido
         ).pack(side="right")
 
+        self._armar_tab_pedidos()
         self._cargar_filtros()
+
+    def _armar_tab_pedidos(self):
+        ttk.Button(
+            self.tab_pedidos, text="↻ Actualizar", style="Ghost.TButton", command=self._cargar_mis_pedidos
+        ).pack(anchor="w", pady=(0, 8))
+
+        cols = ("id_pedido", "fecha", "estado", "total")
+        self.tree_mis_pedidos = ttk.Treeview(self.tab_pedidos, columns=cols, show="headings", height=10)
+        for col, ancho, titulo in [
+            ("id_pedido", 80, "N° Pedido"),
+            ("fecha", 150, "Fecha"),
+            ("estado", 110, "Estado"),
+            ("total", 100, "Total"),
+        ]:
+            self.tree_mis_pedidos.heading(col, text=titulo)
+            self.tree_mis_pedidos.column(col, width=ancho)
+        styles.hacer_ordenable(self.tree_mis_pedidos, cols)
+        self.tree_mis_pedidos.pack(fill="both", expand=True)
+        self.tree_mis_pedidos.bind("<<TreeviewSelect>>", self._al_seleccionar_mi_pedido)
+
+        ttk.Label(
+            self.tab_pedidos, text="Detalle del pedido seleccionado:", font=styles.FONT_BODY_BOLD
+        ).pack(anchor="w", pady=(10, 4))
+        cols_det = ("producto", "talla", "color", "cantidad", "precio", "subtotal")
+        self.tree_mi_detalle = ttk.Treeview(self.tab_pedidos, columns=cols_det, show="headings", height=6)
+        for col, ancho, titulo in [
+            ("producto", 200, "Producto"),
+            ("talla", 50, "Talla"),
+            ("color", 70, "Color"),
+            ("cantidad", 60, "Cant."),
+            ("precio", 90, "Precio"),
+            ("subtotal", 90, "Subtotal"),
+        ]:
+            self.tree_mi_detalle.heading(col, text=titulo)
+            self.tree_mi_detalle.column(col, width=ancho)
+        self.tree_mi_detalle.pack(fill="both", expand=True)
+
+        self._cargar_mis_pedidos()
+
+    def _cargar_mis_pedidos(self):
+        self.tree_mis_pedidos.delete(*self.tree_mis_pedidos.get_children())
+        self.tree_mi_detalle.delete(*self.tree_mi_detalle.get_children())
+        sql = """
+            SELECT id_pedido, fecha_compra, estado_pedido, total
+            FROM Pedido
+            WHERE id_cliente = ?
+            ORDER BY fecha_compra DESC
+        """
+        filas = db.query(sql, (self.cliente["id_cliente"],))
+        for r in filas:
+            self.tree_mis_pedidos.insert(
+                "",
+                "end",
+                iid=str(r["id_pedido"]),
+                values=(
+                    r["id_pedido"],
+                    r["fecha_compra"].strftime("%d/%m/%Y %H:%M"),
+                    r["estado_pedido"],
+                    styles.moneda(r["total"]),
+                ),
+            )
+        if not filas:
+            styles.mostrar_vacio(self.tree_mis_pedidos, "Todavía no tienes pedidos registrados.")
+        styles.zebra(self.tree_mis_pedidos)
+
+    def _al_seleccionar_mi_pedido(self, _event):
+        self.tree_mi_detalle.delete(*self.tree_mi_detalle.get_children())
+        seleccion = self.tree_mis_pedidos.selection()
+        if not seleccion or not seleccion[0].isdigit():
+            return
+        sql = """
+            SELECT p.nombre AS producto, vp.talla, vp.color, dp.cantidad, dp.precio_unitario
+            FROM Detalle_Pedido dp
+            JOIN Variante_Producto vp ON dp.id_variante = vp.id_variante
+            JOIN Producto p ON vp.id_producto = p.id_producto
+            WHERE dp.id_pedido = ?
+        """
+        for r in db.query(sql, (int(seleccion[0]),)):
+            subtotal = float(r["precio_unitario"]) * r["cantidad"]
+            self.tree_mi_detalle.insert(
+                "",
+                "end",
+                values=(
+                    r["producto"],
+                    r["talla"],
+                    r["color"],
+                    r["cantidad"],
+                    styles.moneda(r["precio_unitario"]),
+                    styles.moneda(subtotal),
+                ),
+            )
+        styles.zebra(self.tree_mi_detalle)
 
     def _cargar_filtros(self):
         almacenes = db.query("SELECT id_almacen, nombre FROM Almacen ORDER BY nombre")
@@ -263,9 +372,14 @@ class CatalogoFrame(ttk.Frame):
         if categoria_sel and categoria_sel != "Todas":
             sql += " AND p.id_categoria = ?"
             params.append(self.categorias_map[categoria_sel])
+        texto = self.buscar_var.get().strip()
+        if texto:
+            sql += " AND p.nombre LIKE ?"
+            params.append(f"%{texto}%")
         sql += " ORDER BY p.nombre, vp.talla, vp.color"
 
-        for r in db.query(sql, tuple(params)):
+        filas = db.query(sql, tuple(params))
+        for r in filas:
             self.tree.insert(
                 "",
                 "end",
@@ -276,20 +390,23 @@ class CatalogoFrame(ttk.Frame):
                     r["talla"],
                     r["color"],
                     r["sku"],
-                    f"{r['precio_base']:.2f}",
+                    styles.moneda(r["precio_base"]),
                     r["cantidad_stock"],
                 ),
             )
+        if not filas:
+            styles.mostrar_vacio(self.tree, "No se encontraron productos con ese filtro.")
         styles.zebra(self.tree)
 
     def _agregar_carrito(self):
         seleccion = self.tree.selection()
-        if not seleccion:
+        if not seleccion or not seleccion[0].isdigit():
             messagebox.showinfo("Selecciona un producto", "Elige una fila del catálogo primero.")
             return
         id_variante = int(seleccion[0])
         valores = self.tree.item(seleccion[0], "values")
         producto, marca, talla, color, sku, precio, stock = valores
+        precio_num = float(str(precio).replace("S/", "").replace(",", "").strip())
         cantidad = self.cantidad_var.get()
 
         ya_en_carrito = self.carrito.get(id_variante, {}).get("cantidad", 0)
@@ -304,7 +421,7 @@ class CatalogoFrame(ttk.Frame):
                 "producto": producto,
                 "talla": talla,
                 "color": color,
-                "precio": float(precio),
+                "precio": precio_num,
                 "cantidad": cantidad,
                 "id_almacen": self.almacenes_map[self.almacen_var.get()],
             }
@@ -312,7 +429,7 @@ class CatalogoFrame(ttk.Frame):
 
     def _quitar_del_carrito(self):
         seleccion = self.tree_carrito.selection()
-        if not seleccion:
+        if not seleccion or not seleccion[0].isdigit():
             return
         id_variante = int(seleccion[0])
         del self.carrito[id_variante]
@@ -334,12 +451,14 @@ class CatalogoFrame(ttk.Frame):
                     item["talla"],
                     item["color"],
                     item["cantidad"],
-                    f"{item['precio']:.2f}",
-                    f"{subtotal:.2f}",
+                    styles.moneda(item["precio"]),
+                    styles.moneda(subtotal),
                 ),
             )
+        if not self.carrito:
+            styles.mostrar_vacio(self.tree_carrito, "Tu carrito está vacío.")
         styles.zebra(self.tree_carrito)
-        self.total_var.set(f"Total: S/ {total:.2f}")
+        self.total_var.set(f"Total: {styles.moneda(total)}")
 
     def _confirmar_pedido(self):
         if not self.carrito:
@@ -385,10 +504,13 @@ class CatalogoFrame(ttk.Frame):
                 )
 
             conn.commit()
-            messagebox.showinfo("Pedido confirmado", f"Pedido #{id_pedido} registrado. Total: S/ {total:.2f}")
+            messagebox.showinfo(
+                "Pedido confirmado", f"Pedido #{id_pedido} registrado. Total: {styles.moneda(total)}"
+            )
             self.carrito.clear()
             self._refrescar_carrito()
             self._cargar_catalogo()
+            self._cargar_mis_pedidos()
         except Exception as exc:
             conn.rollback()
             messagebox.showerror("Error al confirmar el pedido", str(exc))
