@@ -25,6 +25,21 @@ GRAD_HERO_BOTTOM = "#0a1930"
 COLOR_ACCENT_SOFT = "#fff0ec"
 COLOR_PRIMARY_SOFT = "#e8eef7"
 
+# Emoji y color de fondo (área de "imagen") por categoría de producto
+CATEGORIA_ESTILO = {
+    "Zapatillas": ("👟", "#e8eef7"),
+    "Camisetas": ("👕", "#eaf5ee"),
+    "Pantalones": ("👖", "#eef0f7"),
+    "Shorts": ("🩳", "#fdeef0"),
+    "Casacas": ("🧥", "#f3eef8"),
+    "Accesorios": ("🎒", "#fff4e6"),
+}
+CATEGORIA_ESTILO_DEFAULT = ("🏷️", "#eef1f7")
+
+
+def estilo_categoria(nombre):
+    return CATEGORIA_ESTILO.get(nombre, CATEGORIA_ESTILO_DEFAULT)
+
 FONT_TITLE = ("Segoe UI", 30, "bold")
 FONT_SUBTITLE = ("Segoe UI", 12)
 FONT_HEADER = ("Segoe UI", 15, "bold")

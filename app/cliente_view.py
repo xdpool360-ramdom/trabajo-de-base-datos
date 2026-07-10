@@ -191,54 +191,32 @@ class CatalogoFrame(ttk.Frame):
         cuerpo = ttk.Frame(tab_comprar)
         cuerpo.pack(fill="both", expand=True)
 
-        catalogo_box = ttk.LabelFrame(cuerpo, text="Catálogo")
-        catalogo_box.pack(side="left", fill="both", expand=True, padx=(0, 10))
+        # ---- Galería de productos (grid de tarjetas) ----
+        galeria_box = ttk.Frame(cuerpo)
+        galeria_box.pack(side="left", fill="both", expand=True, padx=(0, 12))
 
-        columnas = ("producto", "marca", "talla", "color", "sku", "precio", "stock")
-        self.tree = ttk.Treeview(catalogo_box, columns=columnas, show="headings", height=18)
-        for col, ancho, titulo in [
-            ("producto", 180, "Producto"),
-            ("marca", 90, "Marca"),
-            ("talla", 50, "Talla"),
-            ("color", 70, "Color"),
-            ("sku", 130, "SKU"),
-            ("precio", 80, "Precio"),
-            ("stock", 60, "Stock"),
-        ]:
-            self.tree.heading(col, text=titulo)
-            self.tree.column(col, width=ancho)
-        styles.hacer_ordenable(self.tree, columnas)
-        self.tree.pack(fill="both", expand=True, side="left")
-        scroll = ttk.Scrollbar(catalogo_box, orient="vertical", command=self.tree.yview)
-        self.tree.configure(yscrollcommand=scroll.set)
-        scroll.pack(side="right", fill="y")
+        self.lbl_resultados = ttk.Label(galeria_box, text="", style="Muted.TLabel")
+        self.lbl_resultados.pack(anchor="w", pady=(0, 6))
 
-        agregar_box = ttk.Frame(catalogo_box)
-        agregar_box.pack(fill="x", pady=5)
-        ttk.Label(agregar_box, text="Cantidad:").pack(side="left")
-        self.cantidad_var = tk.IntVar(value=1)
-        ttk.Spinbox(agregar_box, from_=1, to=99, width=5, textvariable=self.cantidad_var).pack(side="left", padx=5)
-        ttk.Button(
-            agregar_box, text="+ Agregar al carrito", style="Accent.TButton", command=self._agregar_carrito
-        ).pack(side="left", padx=5)
+        self.galeria = widgets.ScrollableFrame(galeria_box)
+        self.galeria.pack(fill="both", expand=True)
+        self._num_columnas = 3
 
-        carrito_box = ttk.LabelFrame(cuerpo, text="Carrito")
-        carrito_box.pack(side="left", fill="both", expand=True)
+        # ---- Carrito (columna lateral) ----
+        carrito_box = ttk.LabelFrame(cuerpo, text="🛒 Tu carrito")
+        carrito_box.pack(side="left", fill="y")
+        carrito_box.configure(width=340)
 
-        col_carrito = ("producto", "talla", "color", "cantidad", "precio", "subtotal")
+        col_carrito = ("producto", "cantidad", "subtotal")
         self.tree_carrito = ttk.Treeview(carrito_box, columns=col_carrito, show="headings", height=14)
-        for col, ancho, titulo in [
-            ("producto", 150, "Producto"),
-            ("talla", 45, "Talla"),
-            ("color", 60, "Color"),
-            ("cantidad", 60, "Cant."),
-            ("precio", 70, "Precio"),
-            ("subtotal", 80, "Subtotal"),
+        for col, ancho, titulo, anchor in [
+            ("producto", 180, "Producto", "w"),
+            ("cantidad", 55, "Cant.", "center"),
+            ("subtotal", 85, "Subtotal", "e"),
         ]:
             self.tree_carrito.heading(col, text=titulo)
-            self.tree_carrito.column(col, width=ancho)
-        styles.hacer_ordenable(self.tree_carrito, col_carrito)
-        self.tree_carrito.pack(fill="both", expand=True)
+            self.tree_carrito.column(col, width=ancho, anchor=anchor)
+        self.tree_carrito.pack(fill="both", expand=True, padx=6, pady=6)
 
         pie_carrito = ttk.Frame(carrito_box)
         pie_carrito.pack(fill="x", pady=5)
@@ -361,8 +339,7 @@ class CatalogoFrame(ttk.Frame):
         self._cargar_catalogo()
 
     def _cargar_catalogo(self):
-        for row in self.tree.get_children():
-            self.tree.delete(row)
+        self.galeria.limpiar()
 
         id_almacen = self.almacenes_map.get(self.almacen_var.get())
         if id_almacen is None:
@@ -370,11 +347,13 @@ class CatalogoFrame(ttk.Frame):
 
         sql = """
             SELECT vp.id_variante, p.nombre AS producto, m.nombre AS marca,
-                   vp.talla, vp.color, vp.sku, p.precio_base, i.cantidad_stock
+                   c.nombre AS categoria, vp.talla, vp.color, vp.sku,
+                   p.precio_base, i.cantidad_stock
             FROM Inventario i
             JOIN Variante_Producto vp ON i.id_variante = vp.id_variante
             JOIN Producto p ON vp.id_producto = p.id_producto
             JOIN Marca m ON p.id_marca = m.id_marca
+            JOIN Categoria c ON p.id_categoria = c.id_categoria
             WHERE i.id_almacen = ? AND i.cantidad_stock > 0
         """
         params = [id_almacen]
@@ -389,51 +368,54 @@ class CatalogoFrame(ttk.Frame):
         sql += " ORDER BY p.nombre, vp.talla, vp.color"
 
         filas = db.query(sql, tuple(params))
-        for r in filas:
-            self.tree.insert(
-                "",
-                "end",
-                iid=str(r["id_variante"]),
-                values=(
-                    r["producto"],
-                    r["marca"],
-                    r["talla"],
-                    r["color"],
-                    r["sku"],
-                    styles.moneda(r["precio_base"]),
-                    r["cantidad_stock"],
-                ),
-            )
+        self.lbl_resultados.configure(text=f"{len(filas)} productos disponibles")
+
         if not filas:
-            styles.mostrar_vacio(self.tree, "No se encontraron productos con ese filtro.")
-        styles.zebra(self.tree)
-
-    def _agregar_carrito(self):
-        seleccion = self.tree.selection()
-        if not seleccion or not seleccion[0].isdigit():
-            messagebox.showinfo("Selecciona un producto", "Elige una fila del catálogo primero.")
+            tk.Label(
+                self.galeria.interior,
+                text="😕  No se encontraron productos con ese filtro.",
+                bg=styles.COLOR_BG, fg=styles.COLOR_MUTED, font=("Segoe UI", 11),
+            ).pack(pady=40)
             return
-        id_variante = int(seleccion[0])
-        valores = self.tree.item(seleccion[0], "values")
-        producto, marca, talla, color, sku, precio, stock = valores
-        precio_num = float(str(precio).replace("S/", "").replace(",", "").strip())
-        cantidad = self.cantidad_var.get()
 
+        cols = self._num_columnas
+        for i in range(cols):
+            self.galeria.interior.columnconfigure(i, weight=1)
+
+        for idx, r in enumerate(filas):
+            producto = {
+                "id_variante": r["id_variante"],
+                "nombre": r["producto"],
+                "marca": r["marca"],
+                "categoria": r["categoria"],
+                "talla": r["talla"],
+                "color": r["color"],
+                "precio": float(r["precio_base"]),
+                "stock": r["cantidad_stock"],
+                "id_almacen": id_almacen,
+            }
+            card = widgets.ProductCard(self.galeria.interior, producto, on_add=self._agregar_carrito)
+            card.grid(row=idx // cols, column=idx % cols, padx=8, pady=8)
+
+    def _agregar_carrito(self, producto):
+        id_variante = producto["id_variante"]
         ya_en_carrito = self.carrito.get(id_variante, {}).get("cantidad", 0)
-        if cantidad + ya_en_carrito > int(stock):
-            messagebox.showwarning("Stock insuficiente", f"Solo hay {stock} unidades disponibles de este producto.")
+        if ya_en_carrito + 1 > producto["stock"]:
+            messagebox.showwarning(
+                "Stock insuficiente", f"Solo hay {producto['stock']} unidades disponibles de este producto."
+            )
             return
 
         if id_variante in self.carrito:
-            self.carrito[id_variante]["cantidad"] += cantidad
+            self.carrito[id_variante]["cantidad"] += 1
         else:
             self.carrito[id_variante] = {
-                "producto": producto,
-                "talla": talla,
-                "color": color,
-                "precio": precio_num,
-                "cantidad": cantidad,
-                "id_almacen": self.almacenes_map[self.almacen_var.get()],
+                "producto": producto["nombre"],
+                "talla": producto["talla"],
+                "color": producto["color"],
+                "precio": producto["precio"],
+                "cantidad": 1,
+                "id_almacen": producto["id_almacen"],
             }
         self._refrescar_carrito()
 
@@ -452,16 +434,14 @@ class CatalogoFrame(ttk.Frame):
         for id_variante, item in self.carrito.items():
             subtotal = item["precio"] * item["cantidad"]
             total += subtotal
+            nombre_corto = f"{item['producto']}  ({item['talla']}/{item['color']})"
             self.tree_carrito.insert(
                 "",
                 "end",
                 iid=str(id_variante),
                 values=(
-                    item["producto"],
-                    item["talla"],
-                    item["color"],
+                    nombre_corto,
                     item["cantidad"],
-                    styles.moneda(item["precio"]),
                     styles.moneda(subtotal),
                 ),
             )

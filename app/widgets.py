@@ -107,3 +107,127 @@ class HoverCard(tk.Frame):
 
     def _al_salir(self, _e):
         self.configure(highlightbackground=styles.COLOR_BORDER, highlightthickness=1)
+
+
+class ScrollableFrame(tk.Frame):
+    """Contenedor con scroll vertical (Canvas + scrollbar). Los widgets se
+    colocan dentro de `.interior`. Soporta rueda del mouse."""
+
+    def __init__(self, master, **kwargs):
+        super().__init__(master, bg=styles.COLOR_BG, **kwargs)
+        self._canvas = tk.Canvas(self, bg=styles.COLOR_BG, highlightthickness=0, bd=0)
+        self._scroll = tk.Scrollbar(self, orient="vertical", command=self._canvas.yview)
+        self._canvas.configure(yscrollcommand=self._scroll.set)
+
+        self._scroll.pack(side="right", fill="y")
+        self._canvas.pack(side="left", fill="both", expand=True)
+
+        self.interior = tk.Frame(self._canvas, bg=styles.COLOR_BG)
+        self._win = self._canvas.create_window((0, 0), window=self.interior, anchor="nw")
+
+        self.interior.bind("<Configure>", self._al_configurar_interior)
+        self._canvas.bind("<Configure>", self._al_configurar_canvas)
+        self._canvas.bind("<Enter>", lambda e: self._activar_rueda(True))
+        self._canvas.bind("<Leave>", lambda e: self._activar_rueda(False))
+
+    def _al_configurar_interior(self, _e):
+        self._canvas.configure(scrollregion=self._canvas.bbox("all"))
+
+    def _al_configurar_canvas(self, event):
+        self._canvas.itemconfigure(self._win, width=event.width)
+
+    def _activar_rueda(self, activar):
+        if activar:
+            self._canvas.bind_all("<MouseWheel>", self._rueda)
+        else:
+            self._canvas.unbind_all("<MouseWheel>")
+
+    def _rueda(self, event):
+        self._canvas.yview_scroll(int(-event.delta / 120), "units")
+
+    def limpiar(self):
+        for w in self.interior.winfo_children():
+            w.destroy()
+        self._canvas.yview_moveto(0)
+
+
+class ProductCard(tk.Frame):
+    """Tarjeta de producto estilo tienda: área de imagen (emoji + color por
+    categoría), badge, nombre, marca, precio destacado y botón agregar."""
+
+    ANCHO = 205
+    ALTO = 320
+
+    def __init__(self, master, producto, on_add):
+        super().__init__(
+            master, bg=styles.COLOR_CARD, highlightbackground=styles.COLOR_BORDER,
+            highlightthickness=1, width=self.ANCHO, height=self.ALTO,
+        )
+        self._on_add = on_add
+        self._producto = producto
+        self.pack_propagate(False)
+        self.grid_propagate(False)
+
+        emoji, color_fondo = styles.estilo_categoria(producto.get("categoria", ""))
+        stock = producto["stock"]
+
+        # ---- Área de "imagen" ----
+        imagen = tk.Frame(self, bg=color_fondo, height=140)
+        imagen.pack(fill="x")
+        imagen.pack_propagate(False)
+        tk.Label(imagen, text=emoji, bg=color_fondo, font=("Segoe UI Emoji", 44)).place(
+            relx=0.5, rely=0.5, anchor="center"
+        )
+        # badge de stock bajo (esquina superior izquierda)
+        if stock <= 15:
+            tk.Label(
+                imagen, text=f" ¡Solo {stock}! ", bg=styles.COLOR_ACCENT, fg="white",
+                font=("Segoe UI", 8, "bold"),
+            ).place(x=8, y=8)
+
+        # ---- Cuerpo ----
+        cuerpo = tk.Frame(self, bg=styles.COLOR_CARD)
+        cuerpo.pack(fill="both", expand=True, padx=12, pady=(10, 12))
+
+        tk.Label(
+            cuerpo, text=producto["marca"].upper(), bg=styles.COLOR_CARD, fg=styles.COLOR_MUTED,
+            font=("Segoe UI", 8, "bold"),
+        ).pack(anchor="w")
+
+        nombre = producto["nombre"]
+        tk.Label(
+            cuerpo, text=nombre, bg=styles.COLOR_CARD, fg=styles.COLOR_TEXT,
+            font=("Segoe UI", 10, "bold"), wraplength=self.ANCHO - 26, justify="left", height=2, anchor="nw",
+        ).pack(anchor="w", fill="x", pady=(2, 2))
+
+        tk.Label(
+            cuerpo, text=f"Talla {producto['talla']} · {producto['color']}", bg=styles.COLOR_CARD,
+            fg=styles.COLOR_MUTED, font=("Segoe UI", 8),
+        ).pack(anchor="w")
+
+        precio_row = tk.Frame(cuerpo, bg=styles.COLOR_CARD)
+        precio_row.pack(anchor="w", pady=(6, 8))
+        tk.Label(
+            precio_row, text=styles.moneda(producto["precio"]), bg=styles.COLOR_CARD,
+            fg=styles.COLOR_ACCENT, font=("Segoe UI", 14, "bold"),
+        ).pack(side="left")
+
+        btn = tk.Label(
+            cuerpo, text="Agregar  🛒", bg=styles.COLOR_PRIMARY, fg="white",
+            font=("Segoe UI", 9, "bold"), pady=7,
+        )
+        btn.pack(fill="x")
+        btn.bind("<Button-1>", lambda e: self._on_add(self._producto))
+        btn.bind("<Enter>", lambda e: btn.configure(bg=styles.COLOR_ACCENT))
+        btn.bind("<Leave>", lambda e: btn.configure(bg=styles.COLOR_PRIMARY))
+
+        # hover del borde de toda la tarjeta
+        for w in (self, imagen, cuerpo):
+            w.bind("<Enter>", self._hover_on, add="+")
+            w.bind("<Leave>", self._hover_off, add="+")
+
+    def _hover_on(self, _e):
+        self.configure(highlightbackground=styles.COLOR_ACCENT, highlightthickness=2)
+
+    def _hover_off(self, _e):
+        self.configure(highlightbackground=styles.COLOR_BORDER, highlightthickness=1)
