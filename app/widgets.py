@@ -54,6 +54,16 @@ class GradientBanner(tk.Canvas):
         self.tag_lower("grad")
 
 
+def crear_icono_circular(master, emoji, color_circulo, diametro=76, bg=None):
+    """Devuelve un Canvas con un círculo de color y un emoji a color centrado."""
+    bg = bg or styles.COLOR_CARD
+    c = tk.Canvas(master, width=diametro, height=diametro, bg=bg, highlightthickness=0, bd=0)
+    c.create_oval(3, 3, diametro - 3, diametro - 3, fill=color_circulo, outline="")
+    lbl = tk.Label(c, text=emoji, bg=color_circulo, font=("Segoe UI Emoji", 26))
+    c.create_window(diametro / 2, diametro / 2, window=lbl)
+    return c
+
+
 def crear_kpi_card(master, titulo, valor, color_valor=None, emoji=""):
     """Tarjeta de métrica: número grande + etiqueta, sobre fondo blanco."""
     color_valor = color_valor or styles.COLOR_PRIMARY
