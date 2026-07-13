@@ -7,6 +7,7 @@ import db
 import styles
 import widgets
 import reporte_word
+from abastecimiento_view import ProveedoresTab, ComprasTab
 
 ESTADOS_PEDIDO = ["Todos", "Pendiente", "Pagado", "Enviado", "Entregado"]
 
@@ -94,15 +95,24 @@ class AdminFrame(ttk.Frame):
         self.tab_stock = ttk.Frame(notebook, style="Card.TFrame", padding=15)
         self.tab_pedidos = ttk.Frame(notebook, style="Card.TFrame", padding=15)
         self.tab_reportes = ttk.Frame(notebook, style="Card.TFrame", padding=15)
+        self.tab_proveedores = ProveedoresTab(notebook)
+        self.tab_compras = ComprasTab(notebook, on_stock_cambiado=self._on_stock_externo)
         notebook.add(self.tab_precios, text="Precios")
         notebook.add(self.tab_stock, text="Inventario")
         notebook.add(self.tab_pedidos, text="Pedidos")
+        notebook.add(self.tab_proveedores, text="Proveedores")
+        notebook.add(self.tab_compras, text="Compras")
         notebook.add(self.tab_reportes, text="Reportes")
 
         self._armar_tab_precios()
         self._armar_tab_stock()
         self._armar_tab_pedidos()
         self._armar_tab_reportes()
+
+    def _on_stock_externo(self):
+        """Refresca inventario y KPIs cuando una orden de compra suma stock."""
+        self._cargar_stock()
+        self._refrescar_kpis()
 
     # ---------- KPI cards ----------
     def _armar_kpis(self):
