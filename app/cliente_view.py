@@ -186,7 +186,8 @@ class CatalogoFrame(ttk.Frame):
         self.buscar_var = tk.StringVar()
         entry_buscar = ttk.Entry(filtros, textvariable=self.buscar_var, width=22)
         entry_buscar.grid(row=0, column=5, padx=5)
-        entry_buscar.bind("<KeyRelease>", lambda e: self._cargar_catalogo())
+        entry_buscar.bind("<KeyRelease>", lambda e: self._buscar_con_retraso())
+        self._debounce_id = None
 
         cuerpo = ttk.Frame(tab_comprar)
         cuerpo.pack(fill="both", expand=True)
@@ -201,6 +202,10 @@ class CatalogoFrame(ttk.Frame):
         self.galeria = widgets.ScrollableFrame(galeria_box)
         self.galeria.pack(fill="both", expand=True)
         self._num_columnas = 3
+        self._pagina = 48          # productos por lote
+        self._filas_catalogo = []  # resultado de la ultima consulta
+        self._mostradas = 0        # cuantas tarjetas se han renderizado
+        self._btn_mas = None
 
         # ---- Carrito (columna lateral) ----
         carrito_box = ttk.LabelFrame(cuerpo, text="🛒 Tu carrito")
@@ -338,11 +343,19 @@ class CatalogoFrame(ttk.Frame):
 
         self._cargar_catalogo()
 
-    def _cargar_catalogo(self):
-        self.galeria.limpiar()
+    def _buscar_con_retraso(self):
+        """Debounce: espera a que el usuario deje de escribir antes de consultar."""
+        if self._debounce_id is not None:
+            self.after_cancel(self._debounce_id)
+        self._debounce_id = self.after(350, self._cargar_catalogo)
 
-        id_almacen = self.almacenes_map.get(self.almacen_var.get())
-        if id_almacen is None:
+    def _cargar_catalogo(self):
+        self._debounce_id = None
+        self.galeria.limpiar()
+        self._btn_mas = None
+        self._mostradas = 0
+        self._id_almacen_actual = self.almacenes_map.get(self.almacen_var.get())
+        if self._id_almacen_actual is None:
             return
 
         sql = """
@@ -356,7 +369,7 @@ class CatalogoFrame(ttk.Frame):
             JOIN Categoria c ON p.id_categoria = c.id_categoria
             WHERE i.id_almacen = ? AND i.cantidad_stock > 0
         """
-        params = [id_almacen]
+        params = [self._id_almacen_actual]
         categoria_sel = self.categoria_var.get()
         if categoria_sel and categoria_sel != "Todas":
             sql += " AND p.id_categoria = ?"
@@ -367,10 +380,11 @@ class CatalogoFrame(ttk.Frame):
             params.append(f"%{texto}%")
         sql += " ORDER BY p.nombre, vp.talla, vp.color"
 
-        filas = db.query(sql, tuple(params))
-        self.lbl_resultados.configure(text=f"{len(filas)} productos disponibles")
+        self._filas_catalogo = db.query(sql, tuple(params))
+        total = len(self._filas_catalogo)
+        self.lbl_resultados.configure(text=f"{total} productos disponibles")
 
-        if not filas:
+        if not total:
             tk.Label(
                 self.galeria.interior,
                 text="😕  No se encontraron productos con ese filtro.",
@@ -378,11 +392,20 @@ class CatalogoFrame(ttk.Frame):
             ).pack(pady=40)
             return
 
-        cols = self._num_columnas
-        for i in range(cols):
+        for i in range(self._num_columnas):
             self.galeria.interior.columnconfigure(i, weight=1)
+        self._renderizar_lote()
 
-        for idx, r in enumerate(filas):
+    def _renderizar_lote(self):
+        """Renderiza el siguiente lote de tarjetas (paginación)."""
+        if self._btn_mas is not None:
+            self._btn_mas.destroy()
+            self._btn_mas = None
+
+        cols = self._num_columnas
+        fin = min(self._mostradas + self._pagina, len(self._filas_catalogo))
+        for idx in range(self._mostradas, fin):
+            r = self._filas_catalogo[idx]
             producto = {
                 "id_variante": r["id_variante"],
                 "nombre": r["producto"],
@@ -392,10 +415,20 @@ class CatalogoFrame(ttk.Frame):
                 "color": r["color"],
                 "precio": float(r["precio_base"]),
                 "stock": r["cantidad_stock"],
-                "id_almacen": id_almacen,
+                "id_almacen": self._id_almacen_actual,
             }
             card = widgets.ProductCard(self.galeria.interior, producto, on_add=self._agregar_carrito)
             card.grid(row=idx // cols, column=idx % cols, padx=8, pady=8)
+        self._mostradas = fin
+
+        restantes = len(self._filas_catalogo) - self._mostradas
+        if restantes > 0:
+            self._btn_mas = ttk.Button(
+                self.galeria.interior,
+                text=f"▾  Mostrar más ({restantes} restantes)",
+                style="Secondary.TButton", command=self._renderizar_lote,
+            )
+            self._btn_mas.grid(row=(fin - 1) // cols + 1, column=0, columnspan=cols, pady=14)
 
     def _agregar_carrito(self, producto):
         id_variante = producto["id_variante"]
