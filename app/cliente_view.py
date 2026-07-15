@@ -205,7 +205,9 @@ class CatalogoFrame(ttk.Frame):
         self._pagina = 48          # productos por lote
         self._filas_catalogo = []  # resultado de la ultima consulta
         self._mostradas = 0        # cuantas tarjetas se han renderizado
+        self._pool = []            # tarjetas reutilizables (reciclaje)
         self._btn_mas = None
+        self._lbl_vacio = None
 
         # ---- Carrito (columna lateral) ----
         carrito_box = ttk.LabelFrame(cuerpo, text="🛒 Tu carrito")
@@ -351,9 +353,9 @@ class CatalogoFrame(ttk.Frame):
 
     def _cargar_catalogo(self):
         self._debounce_id = None
-        self.galeria.limpiar()
-        self._btn_mas = None
         self._mostradas = 0
+        if self._btn_mas is not None:
+            self._btn_mas.grid_remove()
         self._id_almacen_actual = self.almacenes_map.get(self.almacen_var.get())
         if self._id_almacen_actual is None:
             return
@@ -385,49 +387,67 @@ class CatalogoFrame(ttk.Frame):
         self.lbl_resultados.configure(text=f"{total} productos disponibles")
 
         if not total:
-            tk.Label(
-                self.galeria.interior,
-                text="😕  No se encontraron productos con ese filtro.",
-                bg=styles.COLOR_BG, fg=styles.COLOR_MUTED, font=("Segoe UI", 11),
-            ).pack(pady=40)
+            self._ocultar_tarjetas_desde(0)
+            if self._lbl_vacio is None:
+                self._lbl_vacio = tk.Label(
+                    self.galeria.interior, text="😕  No se encontraron productos con ese filtro.",
+                    bg=styles.COLOR_BG, fg=styles.COLOR_MUTED, font=("Segoe UI", 11),
+                )
+            self._lbl_vacio.grid(row=0, column=0, columnspan=self._num_columnas, pady=40)
             return
 
+        if self._lbl_vacio is not None:
+            self._lbl_vacio.grid_remove()
         for i in range(self._num_columnas):
             self.galeria.interior.columnconfigure(i, weight=1)
         self._renderizar_lote()
 
+    def _obtener_card(self, idx):
+        """Devuelve una tarjeta del pool, creándola solo si aún no existe (reciclaje)."""
+        if idx < len(self._pool):
+            return self._pool[idx]
+        card = widgets.ProductCard(
+            self.galeria.interior, self._fila_a_producto(self._filas_catalogo[idx]),
+            on_add=self._agregar_carrito,
+        )
+        self._pool.append(card)
+        return card
+
+    def _fila_a_producto(self, r):
+        return {
+            "id_variante": r["id_variante"], "nombre": r["producto"], "marca": r["marca"],
+            "categoria": r["categoria"], "talla": r["talla"], "color": r["color"],
+            "precio": float(r["precio_base"]), "stock": r["cantidad_stock"],
+            "id_almacen": self._id_almacen_actual,
+        }
+
+    def _ocultar_tarjetas_desde(self, n):
+        for card in self._pool[n:]:
+            card.grid_remove()
+
     def _renderizar_lote(self):
-        """Renderiza el siguiente lote de tarjetas (paginación)."""
+        """Renderiza el siguiente lote reutilizando las tarjetas del pool."""
         if self._btn_mas is not None:
-            self._btn_mas.destroy()
-            self._btn_mas = None
+            self._btn_mas.grid_remove()
 
         cols = self._num_columnas
         fin = min(self._mostradas + self._pagina, len(self._filas_catalogo))
         for idx in range(self._mostradas, fin):
-            r = self._filas_catalogo[idx]
-            producto = {
-                "id_variante": r["id_variante"],
-                "nombre": r["producto"],
-                "marca": r["marca"],
-                "categoria": r["categoria"],
-                "talla": r["talla"],
-                "color": r["color"],
-                "precio": float(r["precio_base"]),
-                "stock": r["cantidad_stock"],
-                "id_almacen": self._id_almacen_actual,
-            }
-            card = widgets.ProductCard(self.galeria.interior, producto, on_add=self._agregar_carrito)
+            card = self._obtener_card(idx)
+            card.actualizar(self._fila_a_producto(self._filas_catalogo[idx]))
             card.grid(row=idx // cols, column=idx % cols, padx=8, pady=8)
         self._mostradas = fin
 
+        # ocultar tarjetas sobrantes del pool (cuando el filtro devuelve menos)
+        self._ocultar_tarjetas_desde(self._mostradas)
+
         restantes = len(self._filas_catalogo) - self._mostradas
         if restantes > 0:
-            self._btn_mas = ttk.Button(
-                self.galeria.interior,
-                text=f"▾  Mostrar más ({restantes} restantes)",
-                style="Secondary.TButton", command=self._renderizar_lote,
-            )
+            if self._btn_mas is None:
+                self._btn_mas = ttk.Button(
+                    self.galeria.interior, style="Secondary.TButton", command=self._renderizar_lote
+                )
+            self._btn_mas.configure(text=f"▾  Mostrar más ({restantes} restantes)")
             self._btn_mas.grid(row=(fin - 1) // cols + 1, column=0, columnspan=cols, pady=14)
 
     def _agregar_carrito(self, producto):

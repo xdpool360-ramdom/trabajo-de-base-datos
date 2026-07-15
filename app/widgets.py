@@ -162,8 +162,9 @@ class ScrollableFrame(tk.Frame):
 
 
 class ProductCard(tk.Frame):
-    """Tarjeta de producto estilo tienda: área de imagen (emoji + color por
-    categoría), badge, nombre, marca, precio destacado y botón agregar."""
+    """Tarjeta de producto estilo tienda. Se construye una sola vez; con
+    actualizar() se cambia su contenido sin recrear widgets (reciclaje), lo que
+    hace que recargar el catálogo sea casi instantáneo."""
 
     ANCHO = 205
     ALTO = 320
@@ -174,53 +175,44 @@ class ProductCard(tk.Frame):
             highlightthickness=1, width=self.ANCHO, height=self.ALTO,
         )
         self._on_add = on_add
-        self._producto = producto
+        self._producto = None
         self.pack_propagate(False)
         self.grid_propagate(False)
 
-        emoji, color_fondo = styles.estilo_categoria(producto.get("categoria", ""))
-        stock = producto["stock"]
-
         # ---- Área de "imagen" ----
-        imagen = tk.Frame(self, bg=color_fondo, height=140)
-        imagen.pack(fill="x")
-        imagen.pack_propagate(False)
-        tk.Label(imagen, text=emoji, bg=color_fondo, font=("Segoe UI Emoji", 44)).place(
-            relx=0.5, rely=0.5, anchor="center"
-        )
-        # badge de stock bajo (esquina superior izquierda)
-        if stock <= 15:
-            tk.Label(
-                imagen, text=f" ¡Solo {stock}! ", bg=styles.COLOR_ACCENT, fg="white",
-                font=("Segoe UI", 8, "bold"),
-            ).place(x=8, y=8)
+        self._imagen = tk.Frame(self, height=140)
+        self._imagen.pack(fill="x")
+        self._imagen.pack_propagate(False)
+        self._emoji_lbl = tk.Label(self._imagen, font=("Segoe UI Emoji", 44))
+        self._emoji_lbl.place(relx=0.5, rely=0.5, anchor="center")
+        self._badge_lbl = tk.Label(
+            self._imagen, bg=styles.COLOR_ACCENT, fg="white", font=("Segoe UI", 8, "bold")
+        )  # se muestra/oculta segun stock
 
         # ---- Cuerpo ----
         cuerpo = tk.Frame(self, bg=styles.COLOR_CARD)
         cuerpo.pack(fill="both", expand=True, padx=12, pady=(10, 12))
 
-        tk.Label(
-            cuerpo, text=producto["marca"].upper(), bg=styles.COLOR_CARD, fg=styles.COLOR_MUTED,
-            font=("Segoe UI", 8, "bold"),
-        ).pack(anchor="w")
-
-        nombre = producto["nombre"]
-        tk.Label(
-            cuerpo, text=nombre, bg=styles.COLOR_CARD, fg=styles.COLOR_TEXT,
-            font=("Segoe UI", 10, "bold"), wraplength=self.ANCHO - 26, justify="left", height=2, anchor="nw",
-        ).pack(anchor="w", fill="x", pady=(2, 2))
-
-        tk.Label(
-            cuerpo, text=f"Talla {producto['talla']} · {producto['color']}", bg=styles.COLOR_CARD,
-            fg=styles.COLOR_MUTED, font=("Segoe UI", 8),
-        ).pack(anchor="w")
+        self._marca_lbl = tk.Label(
+            cuerpo, bg=styles.COLOR_CARD, fg=styles.COLOR_MUTED, font=("Segoe UI", 8, "bold")
+        )
+        self._marca_lbl.pack(anchor="w")
+        self._nombre_lbl = tk.Label(
+            cuerpo, bg=styles.COLOR_CARD, fg=styles.COLOR_TEXT, font=("Segoe UI", 10, "bold"),
+            wraplength=self.ANCHO - 26, justify="left", height=2, anchor="nw",
+        )
+        self._nombre_lbl.pack(anchor="w", fill="x", pady=(2, 2))
+        self._tallacolor_lbl = tk.Label(
+            cuerpo, bg=styles.COLOR_CARD, fg=styles.COLOR_MUTED, font=("Segoe UI", 8)
+        )
+        self._tallacolor_lbl.pack(anchor="w")
 
         precio_row = tk.Frame(cuerpo, bg=styles.COLOR_CARD)
         precio_row.pack(anchor="w", pady=(6, 8))
-        tk.Label(
-            precio_row, text=styles.moneda(producto["precio"]), bg=styles.COLOR_CARD,
-            fg=styles.COLOR_ACCENT, font=("Segoe UI", 14, "bold"),
-        ).pack(side="left")
+        self._precio_lbl = tk.Label(
+            precio_row, bg=styles.COLOR_CARD, fg=styles.COLOR_ACCENT, font=("Segoe UI", 14, "bold")
+        )
+        self._precio_lbl.pack(side="left")
 
         btn = tk.Label(
             cuerpo, text="Agregar  🛒", bg=styles.COLOR_PRIMARY, fg="white",
@@ -231,10 +223,31 @@ class ProductCard(tk.Frame):
         btn.bind("<Enter>", lambda e: btn.configure(bg=styles.COLOR_ACCENT))
         btn.bind("<Leave>", lambda e: btn.configure(bg=styles.COLOR_PRIMARY))
 
-        # hover del borde de toda la tarjeta
-        for w in (self, imagen, cuerpo):
+        for w in (self, self._imagen, cuerpo):
             w.bind("<Enter>", self._hover_on, add="+")
             w.bind("<Leave>", self._hover_off, add="+")
+
+        self.actualizar(producto)
+
+    def actualizar(self, producto):
+        """Cambia el contenido de la tarjeta sin recrear widgets."""
+        self._producto = producto
+        emoji, color_fondo = styles.estilo_categoria(producto.get("categoria", ""))
+        self._imagen.configure(bg=color_fondo)
+        self._emoji_lbl.configure(text=emoji, bg=color_fondo)
+
+        stock = producto["stock"]
+        if stock <= 15:
+            self._badge_lbl.configure(text=f" ¡Solo {stock}! ")
+            self._badge_lbl.place(x=8, y=8)
+        else:
+            self._badge_lbl.place_forget()
+
+        self._marca_lbl.configure(text=producto["marca"].upper())
+        self._nombre_lbl.configure(text=producto["nombre"])
+        self._tallacolor_lbl.configure(text=f"Talla {producto['talla']} · {producto['color']}")
+        self._precio_lbl.configure(text=styles.moneda(producto["precio"]))
+        self._hover_off(None)
 
     def _hover_on(self, _e):
         self.configure(highlightbackground=styles.COLOR_ACCENT, highlightthickness=2)
